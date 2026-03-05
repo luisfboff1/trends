@@ -43,6 +43,7 @@ export function Header() {
       transition={{ duration: 0.2, ease: 'easeInOut' }}
       className="fixed top-0 right-0 h-14 z-30 flex items-center gap-3 px-4 bg-[var(--background)] border-b border-[var(--border)]"
       style={{ left: marginLeft }}
+    >
       {/* Mobile hamburger */}
       <Button variant="ghost" size="icon" onClick={toggleCollapsed} className="md:hidden">
         <Menu size={18} />
