@@ -65,7 +65,7 @@ export function Sidebar() {
           {/* Logo / brand */}
           <div className="flex items-center justify-between h-14 px-4 border-b border-[var(--sidebar-border)] flex-shrink-0">
             <div className="flex items-center">
-              <img src="/logo.webp" alt="Trends" className="h-8 w-auto object-contain" />
+              <img src="/logo-sem-fundo.png" alt="Trends" className="h-8 w-auto object-contain" />
             </div>
             {/* Desktop collapse button — top-right corner of sidebar */}
             <button

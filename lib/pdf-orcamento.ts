@@ -78,14 +78,14 @@ export async function gerarPdfOrcamento(opts: PdfOrcamentoOptions): Promise<void
   let y = margin
 
   // ── Logo ────────────────────────────────────────────────────────────────────
-  const logo = await loadImageAsBase64('/logo.jpg')
+  const logo = await loadImageAsBase64('/logo-sem-fundo.png')
   if (logo) {
     const maxW = 50
     const maxH = 18
     const ratio = Math.min(maxW / logo.w, maxH / logo.h)
     const imgW = logo.w * ratio
     const imgH = logo.h * ratio
-    doc.addImage(logo.data, 'JPEG', margin, y, imgW, imgH)
+    doc.addImage(logo.data, 'PNG', margin, y, imgW, imgH)
   } else {
     // Fallback: text logo
     doc.setFont('helvetica', 'bold')
