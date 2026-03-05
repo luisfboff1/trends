@@ -4,6 +4,7 @@ import { Menu, Sun, Moon } from 'lucide-react'
 import { useThemeStore } from '@/store/theme'
 import { useSidebarStore } from '@/store/sidebar'
 import { Button } from '@/components/ui/button'
+import { motion } from 'framer-motion'
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -17,7 +18,7 @@ const PAGE_TITLES: Record<string, string> = {
 export function Header() {
   const router = useRouter()
   const { theme, toggleTheme } = useThemeStore()
-  const { toggleCollapsed } = useSidebarStore()
+  const { toggleCollapsed, isCollapsed } = useSidebarStore()
 
   const title = PAGE_TITLES[router.pathname] ??
     (router.pathname.startsWith('/orcamentos/') ? 'Orçamento' :
@@ -25,9 +26,16 @@ export function Header() {
 
   return (
     <header className="fixed top-0 right-0 left-0 h-14 z-30 flex items-center gap-3 px-4 bg-[var(--background)] border-b border-[var(--border)]">
+      {/* Mobile hamburger */}
       <Button variant="ghost" size="icon" onClick={toggleCollapsed} className="md:hidden">
         <Menu size={18} />
       </Button>
+      {/* Desktop expand button — only visible when sidebar is collapsed */}
+      {isCollapsed && (
+        <Button variant="ghost" size="icon" onClick={toggleCollapsed} className="hidden md:flex">
+          <Menu size={18} />
+        </Button>
+      )}
 
       <h1 className="text-sm font-semibold text-[var(--foreground)] flex-1">{title}</h1>
 

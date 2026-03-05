@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { GetServerSideProps } from 'next'
 import { getSession } from 'next-auth/react'
 import { useRouter } from 'next/router'
-import { ArrowLeft, Plus, Trash2, Save, FileCheck2, Loader2, Printer } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Save, FileCheck2, Loader2, Printer, FileDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,6 +13,7 @@ import { orcamentosService, clientesService, tiposPapelService } from '@/service
 import { useToast } from '@/hooks/use-toast'
 import { formatCurrency, formatM2, formatLocalDate } from '@/lib/utils'
 import { calcularItem } from '@/lib/pricing'
+import { gerarPdfOrcamento } from '@/lib/pdf-orcamento'
 import type { TipoPapel, Cliente } from '@/types'
 
 interface ItemRow {
@@ -51,6 +52,7 @@ export default function OrcamentoDetailPage() {
   const [loading, setLoading] = useState(!isNew)
   const [saving, setSaving] = useState(false)
   const [converting, setConverting] = useState(false)
+  const [exportingPdf, setExportingPdf] = useState(false)
 
   // Form state
   const [clienteId, setClienteId] = useState<number | ''>('')
@@ -201,6 +203,46 @@ export default function OrcamentoDetailPage() {
     }
   }
 
+  async function handleExportPdf() {
+    if (!orc) return
+    setExportingPdf(true)
+    try {
+      const cliente = clientes.find(c => c.id === orc.cliente_id) ?? orc.cliente
+      await gerarPdfOrcamento({
+        numero: orc.numero,
+        data: new Date(orc.created_at).toLocaleDateString('pt-BR'),
+        status: orc.status,
+        tipo_margem: tipoMargem,
+        observacoes: observacoes || undefined,
+        valor_total: valorTotal,
+        cliente: {
+          razao_social: cliente?.razao_social ?? '',
+          cnpj: cliente?.cnpj ?? '',
+          email: cliente?.email,
+          telefone: cliente?.telefone,
+          endereco: cliente?.endereco,
+          cidade: cliente?.cidade,
+          estado: cliente?.estado,
+        },
+        itens: itens
+          .filter(i => i.tipo_papel_id && i.preco_m2)
+          .map(i => ({
+            tipo_papel_nome: i.tipo_papel_nome ?? '',
+            largura_mm: i.largura_mm,
+            altura_mm: i.altura_mm,
+            colunas: i.colunas,
+            quantidade: i.quantidade,
+            preco_m2: i.preco_m2!,
+            observacoes: i.observacoes,
+          })),
+      })
+    } catch {
+      toast({ title: 'Erro ao gerar PDF', variant: 'destructive' })
+    } finally {
+      setExportingPdf(false)
+    }
+  }
+
   const isReadonly = !isNew && orc?.status === 'convertido'
 
   if (loading) {
@@ -240,6 +282,12 @@ export default function OrcamentoDetailPage() {
             <Button variant="outline" onClick={handleConverter} disabled={converting}>
               {converting ? <Loader2 size={14} className="animate-spin" /> : <FileCheck2 size={14} />}
               Converter em Pedido
+            </Button>
+          )}
+          {!isNew && orc && (
+            <Button variant="outline" onClick={handleExportPdf} disabled={exportingPdf}>
+              {exportingPdf ? <Loader2 size={14} className="animate-spin" /> : <FileDown size={14} />}
+              Exportar PDF
             </Button>
           )}
         </div>
@@ -371,28 +419,45 @@ export default function OrcamentoDetailPage() {
 
                   {/* Live calc results */}
                   {calc && (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 p-3 rounded-lg bg-[var(--muted)]/40 text-xs">
-                      <div>
-                        <p className="text-[var(--muted-foreground)]">Área total</p>
-                        <p className="font-medium">{formatM2(calc.m2_total)}</p>
-                      </div>
-                      <div>
-                        <p className="text-[var(--muted-foreground)]">Custo/mil</p>
-                        <p className="font-medium">{formatCurrency(calc.custo_por_mil)}</p>
-                      </div>
-                      <div>
-                        <p className="text-[var(--muted-foreground)]">Desconto</p>
-                        <p className="font-medium text-green-600">{(calc.desconto_pct * 100).toFixed(0)}%</p>
-                      </div>
-                      <div>
-                        <p className="text-[var(--muted-foreground)]">Preço/mil</p>
-                        <p className="font-medium text-[var(--primary)]">{formatCurrency(calc.preco_por_mil)}</p>
-                      </div>
-                      <div className="col-span-2 md:col-span-4 border-t border-[var(--border)] pt-2 mt-1">
-                        <div className="flex justify-between">
-                          <span className="text-[var(--muted-foreground)]">Altura total (c/ espaçamento): {calc.altura_total_mm}mm</span>
-                          <span className="font-semibold">Total: {formatCurrency(calc.valor_total)}</span>
+                    <div className="space-y-2 text-xs">
+                      {/* Row 1 — inputs */}
+                      <div className="grid grid-cols-3 gap-2 p-3 rounded-lg bg-[var(--muted)]/40">
+                        <div>
+                          <p className="text-[var(--muted-foreground)]">Papel/m²</p>
+                          <p className="font-medium">{item.preco_m2 != null ? formatCurrency(item.preco_m2) : '—'}</p>
                         </div>
+                        <div>
+                          <p className="text-[var(--muted-foreground)]">Metros/mil</p>
+                          <p className="font-medium">{calc.metros_por_mil.toFixed(2)} m</p>
+                        </div>
+                        <div>
+                          <p className="text-[var(--muted-foreground)]">Área total</p>
+                          <p className="font-medium">{formatM2(calc.m2_total)}</p>
+                        </div>
+                      </div>
+                      {/* Row 2 — pricing stages */}
+                      <div className="grid grid-cols-4 gap-2 p-3 rounded-lg bg-[var(--muted)]/40">
+                        <div>
+                          <p className="text-[var(--muted-foreground)]">Valor milheiro (base)</p>
+                          <p className="font-medium">{formatCurrency(calc.custo_por_mil)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[var(--muted-foreground)]">Margem</p>
+                          <p className="font-medium">{calc.margem_fator}×</p>
+                        </div>
+                        <div>
+                          <p className="text-[var(--muted-foreground)]">Desconto</p>
+                          <p className="font-medium text-green-600">{(calc.desconto_pct * 100).toFixed(0)}%</p>
+                        </div>
+                        <div>
+                          <p className="text-[var(--muted-foreground)]">Preço/mil (c/ margem)</p>
+                          <p className="font-semibold text-[var(--primary)]">{formatCurrency(calc.preco_por_mil)}</p>
+                        </div>
+                      </div>
+                      {/* Footer */}
+                      <div className="flex justify-between px-1">
+                        <span className="text-[var(--muted-foreground)]">Altura total (c/ espaçamento): {calc.altura_total_mm}mm</span>
+                        <span className="font-semibold">Total: {formatCurrency(calc.valor_total)}</span>
                       </div>
                     </div>
                   )}

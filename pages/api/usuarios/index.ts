@@ -6,8 +6,17 @@ import sql from '@/lib/db'
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const user = (req as any).user
 
-  // GET — lista usuários (admin vê todos, vendedor não acessa)
+  // GET — lista usuários
+  // ?role=vendedores → qualquer autenticado, retorna apenas id+nome dos ativos
+  // sem role  → apenas admin, retorna lista completa
   if (req.method === 'GET') {
+    if (req.query.role === 'vendedores') {
+      const data = await sql`
+        SELECT id, nome FROM usuarios WHERE ativo = true ORDER BY nome ASC
+      `
+      return res.json({ success: true, data })
+    }
+
     if (user.tipo !== 'admin') return res.status(403).json({ success: false, error: 'Acesso negado' })
 
     const status = req.query.status as string | undefined // 'pendente' | 'ativo' | 'todos'

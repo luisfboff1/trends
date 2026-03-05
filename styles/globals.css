@@ -34,10 +34,10 @@
     --radius: 0.5rem;
 
     /* ── Sidebar ── */
-    --sidebar-bg: #000000;
+    --sidebar-bg: #1a1a1a;
     --sidebar-text: #ffffff;
     --sidebar-accent: #dd2620;
-    --sidebar-border: #222222;
+    --sidebar-border: #2d2d2d;
     --sidebar-width: 240px;
     --sidebar-collapsed-width: 64px;
 

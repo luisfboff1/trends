@@ -47,6 +47,7 @@ export interface CalcParams {
 
 export interface CalcResult {
   altura_total_mm: number  // altura_mm + 3
+  metros_por_mil: number   // linear meters of paper per 1000 labels
   m2_por_mil: number       // m² per 1000 labels
   m2_total: number         // total m² for the order
   custo_por_mil: number    // cost per 1000 labels
@@ -60,8 +61,10 @@ export function calcularItem(params: CalcParams): CalcResult {
   const { largura_mm, altura_mm, colunas, quantidade, preco_m2, tipo_margem } = params
 
   const altura_total_mm = altura_mm + ESPACAMENTO_MM
-  // m² per 1000 labels: (width_mm × height_mm × cols × 1000) / 1_000_000
-  const m2_por_mil = (largura_mm * altura_total_mm * colunas * 1000) / 1_000_000
+  // linear meters of paper for 1000 labels: (1000/cols) * height_mm / 1000
+  const metros_por_mil = (altura_total_mm / colunas)
+  // m² per 1000 labels: metros × (total_width_m) = metros × (cols × largura_mm / 1000)
+  const m2_por_mil = metros_por_mil * (colunas * largura_mm) / 1_000
   const m2_total = m2_por_mil * quantidade / 1000
 
   const custo_por_mil = m2_por_mil * preco_m2 * (1 + BUFFER_PAPEL)
@@ -72,6 +75,7 @@ export function calcularItem(params: CalcParams): CalcResult {
 
   return {
     altura_total_mm,
+    metros_por_mil,
     m2_por_mil,
     m2_total,
     custo_por_mil,

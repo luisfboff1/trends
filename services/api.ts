@@ -53,6 +53,7 @@ export const dashboardService = {
 export const usuariosService = {
   list: (status?: 'pendente' | 'ativo' | 'todos') =>
     api.get('/usuarios', { params: { status } }),
+  listVendedores: () => api.get('/usuarios', { params: { role: 'vendedores' } }),
   create: (data: unknown) => api.post('/usuarios', data),
   approve: (id: number) => api.patch(`/usuarios/${id}`, { ativo: true }),
   reject: (id: number) => api.patch(`/usuarios/${id}`, { ativo: false }),

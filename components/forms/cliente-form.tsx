@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Search, Loader2 } from 'lucide-react'
@@ -7,8 +7,10 @@ import type { ClienteInput } from '@/lib/validations/cliente'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { clientesService } from '@/services/api'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { clientesService, usuariosService } from '@/services/api'
 import { formatCNPJ } from '@/lib/utils'
+import { useToast } from '@/hooks/use-toast'
 
 interface ClienteFormProps {
   defaultValues?: Partial<ClienteInput>
@@ -18,6 +20,12 @@ interface ClienteFormProps {
 
 export function ClienteForm({ defaultValues, onSubmit, loading }: ClienteFormProps) {
   const [cnpjLoading, setCnpjLoading] = useState(false)
+  const [vendedores, setVendedores] = useState<{ id: number; nome: string }[]>([])
+  const { toast } = useToast()
+
+  useEffect(() => {
+    usuariosService.listVendedores().then(r => setVendedores(r.data?.data ?? [])).catch(() => {})
+  }, [])
 
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<ClienteInput>({
     resolver: zodResolver(clienteSchema),
@@ -40,7 +48,7 @@ export function ClienteForm({ defaultValues, onSubmit, loading }: ClienteFormPro
       setValue('cidade', d.cidade ?? '')
       setValue('estado', d.estado ?? '')
     } catch {
-      // silently fail — user can fill manually
+      toast({ title: 'CNPJ não encontrado', description: 'Preencha os dados manualmente.', variant: 'destructive' })
     } finally {
       setCnpjLoading(false)
     }
@@ -95,6 +103,23 @@ export function ClienteForm({ defaultValues, onSubmit, loading }: ClienteFormPro
           <Label htmlFor="estado">UF</Label>
           <Input id="estado" {...register('estado')} maxLength={2} className="uppercase" placeholder="SC" />
         </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="vendedor_id">Vendedor responsável</Label>
+        <Select
+          value={watch('vendedor_id') ? String(watch('vendedor_id')) : ''}
+          onValueChange={(v) => setValue('vendedor_id', v ? Number(v) : undefined)}
+        >
+          <SelectTrigger id="vendedor_id">
+            <SelectValue placeholder="Selecione um vendedor (opcional)" />
+          </SelectTrigger>
+          <SelectContent>
+            {vendedores.map((v) => (
+              <SelectItem key={v.id} value={String(v.id)}>{v.nome}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="flex justify-end gap-2 pt-2">

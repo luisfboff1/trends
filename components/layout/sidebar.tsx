@@ -4,7 +4,7 @@ import { useRouter } from 'next/router'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, Users, FileText, ShoppingCart,
-  Layers, ChevronLeft, ChevronRight, LogOut, Tag, X
+  Layers, ChevronLeft, LogOut, Tag, X
 } from 'lucide-react'
 import { useSession, signOut } from 'next-auth/react'
 import { useSidebarStore } from '@/store/sidebar'
@@ -68,6 +68,13 @@ export function Sidebar() {
               <span className="text-[var(--sidebar-accent)] font-bold text-xl tracking-tight">Trends</span>
               <span className="text-[var(--sidebar-text)] text-xs opacity-60 font-medium">Soluções</span>
             </div>
+            {/* Desktop collapse button — top-right corner of sidebar */}
+            <button
+              onClick={toggleCollapsed}
+              className="hidden md:flex items-center justify-center w-7 h-7 rounded-md text-[var(--sidebar-text)] opacity-50 hover:opacity-100 hover:bg-white/10 transition-colors"
+            >
+              <ChevronLeft size={16} />
+            </button>
             {/* Mobile close button */}
             <button
               onClick={() => setCollapsed(true)}
@@ -121,15 +128,7 @@ export function Sidebar() {
         </div>
       </motion.aside>
 
-      {/* Desktop collapse toggle (not shown on mobile) */}
-      <motion.button
-        animate={{ left: isCollapsed ? 12 : 228 }}
-        transition={{ duration: 0.2, ease: 'easeInOut' }}
-        onClick={toggleCollapsed}
-        className="hidden md:flex fixed top-16 w-6 h-6 rounded-full bg-[var(--sidebar-accent)] text-white items-center justify-center shadow-md hover:bg-[var(--primary-hover)] transition-colors z-50"
-      >
-        {isCollapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
-      </motion.button>
+
     </>
   )
 }
