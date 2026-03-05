@@ -23,8 +23,19 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       return res.status(400).json({ success: false, error: 'Nome e preço são obrigatórios' })
     }
     const [tipo] = await sql`
-      INSERT INTO tipos_papel (nome, descricao, fornecedor, preco_m2)
-      VALUES (${body.nome}, ${body.descricao ?? null}, ${body.fornecedor ?? null}, ${body.preco_m2})
+      INSERT INTO tipos_papel (nome, descricao, fornecedor, preco_m2, pago, icms, ipi, frete, total, data_compra)
+      VALUES (
+        ${body.nome},
+        ${body.descricao ?? null},
+        ${body.fornecedor ?? null},
+        ${body.preco_m2},
+        ${body.pago ?? null},
+        ${body.icms ?? null},
+        ${body.ipi ?? null},
+        ${body.frete ?? null},
+        ${body.total ?? null},
+        ${body.data_compra ?? null}
+      )
       RETURNING *
     `
     return res.status(201).json({ success: true, data: tipo as TipoPapel })

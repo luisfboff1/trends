@@ -23,6 +23,12 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         descricao  = ${body.descricao ?? tipo.descricao},
         fornecedor = ${body.fornecedor ?? tipo.fornecedor},
         preco_m2   = ${body.preco_m2 ?? tipo.preco_m2},
+        pago       = ${body.pago ?? tipo.pago},
+        icms       = ${body.icms ?? tipo.icms},
+        ipi        = ${body.ipi ?? tipo.ipi},
+        frete      = ${body.frete ?? tipo.frete},
+        total      = ${body.total ?? tipo.total},
+        data_compra = ${body.data_compra ?? tipo.data_compra},
         ativo      = ${body.ativo ?? tipo.ativo},
         updated_at = NOW()
       WHERE id = ${tipoPapelId}

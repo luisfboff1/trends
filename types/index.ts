@@ -71,6 +71,12 @@ export interface TipoPapel {
   descricao?: string
   fornecedor?: string
   preco_m2: number
+  pago?: number
+  icms?: number
+  ipi?: number
+  frete?: number
+  total?: number
+  data_compra?: string
   ativo: boolean
   created_at: string
   updated_at: string
@@ -81,6 +87,12 @@ export interface TipoPapelForm {
   descricao?: string
   fornecedor?: string
   preco_m2: number
+  pago?: number
+  icms?: number
+  ipi?: number
+  frete?: number
+  total?: number
+  data_compra?: string
 }
 
 // ─── Orçamentos ─────────────────────────────────────────────────────────────
