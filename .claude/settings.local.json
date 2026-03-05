@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(file /c/Users/Luisf/Documents/GITHUB/trends/Site/assets/*.webp)",
+      "Read(//c/Users/Luisf/Documents/GITHUB/meguispet/lib//**)",
+      "Bash(pnpm create next-app . --typescript --tailwind --no-app --eslint --import-alias \"@/*\" --yes)",
+      "Bash(pnpm install)",
+      "Bash(node -e \":*)",
+      "Bash(pnpm build)",
+      "Bash(node migrate.mjs)",
+      "Bash(node run-migration.mjs)",
+      "Bash(pnpm add next-auth)",
+      "Bash(node approve.mjs)",
+      "Bash(pnpm add xlsx)",
+      "Bash(node read-excel.mjs)",
+      "Bash(node import-papeis.mjs)"
+    ]
+  }
+}
