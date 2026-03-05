@@ -25,7 +25,7 @@ export function Header() {
       router.pathname.startsWith('/pedidos/') ? 'Pedido' : 'Trends')
 
   return (
-    <header className="fixed top-0 right-0 left-0 h-14 z-30 flex items-center gap-3 px-4 bg-[var(--background)] border-b border-[var(--border)]">
+    <header className="fixed top-0 right-0 left-0 h-14 z-50 flex items-center gap-3 px-4 bg-[var(--background)] border-b border-[var(--border)]">
       {/* Mobile hamburger */}
       <Button variant="ghost" size="icon" onClick={toggleCollapsed} className="md:hidden">
         <Menu size={18} />

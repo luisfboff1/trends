@@ -49,16 +49,23 @@ function formatCNPJ(cnpj: string) {
   return `${c.slice(0,2)}.${c.slice(2,5)}.${c.slice(5,8)}/${c.slice(8,12)}-${c.slice(12)}`
 }
 
-async function loadImageAsBase64(url: string): Promise<string | null> {
+async function loadImageAsBase64(url: string): Promise<{ data: string; w: number; h: number } | null> {
   try {
     const res = await fetch(url)
     const blob = await res.blob()
-    return new Promise((resolve) => {
+    const data = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader()
       reader.onload = () => resolve(reader.result as string)
-      reader.onerror = () => resolve(null)
+      reader.onerror = reject
       reader.readAsDataURL(blob)
     })
+    const { w, h } = await new Promise<{ w: number; h: number }>((resolve) => {
+      const img = new Image()
+      img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight })
+      img.onerror = () => resolve({ w: 1, h: 1 })
+      img.src = data
+    })
+    return { data, w, h }
   } catch {
     return null
   }
@@ -71,9 +78,14 @@ export async function gerarPdfOrcamento(opts: PdfOrcamentoOptions): Promise<void
   let y = margin
 
   // ── Logo ────────────────────────────────────────────────────────────────────
-  const logoBase64 = await loadImageAsBase64('/logo-trends.webp')
-  if (logoBase64) {
-    doc.addImage(logoBase64, 'WEBP', margin, y, 40, 14)
+  const logo = await loadImageAsBase64('/logo.webp')
+  if (logo) {
+    const maxW = 50
+    const maxH = 18
+    const ratio = Math.min(maxW / logo.w, maxH / logo.h)
+    const imgW = logo.w * ratio
+    const imgH = logo.h * ratio
+    doc.addImage(logo.data, 'WEBP', margin, y, imgW, imgH)
   } else {
     // Fallback: text logo
     doc.setFont('helvetica', 'bold')

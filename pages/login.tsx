@@ -55,9 +55,9 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-4">
       <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-[var(--primary)] tracking-tight">Trends</h1>
-          <p className="text-sm text-[var(--muted-foreground)] mt-1">Sistema de Gestão</p>
+        <div className="flex flex-col items-center mb-8 gap-3">
+          <img src="/logo.webp" alt="Trends" className="h-16 w-auto object-contain" />
+          <p className="text-sm text-[var(--muted-foreground)]">Sistema de Gestão</p>
         </div>
 
         <div className="bg-[var(--card)] rounded-xl border border-[var(--border)] p-6 shadow-sm space-y-5">
