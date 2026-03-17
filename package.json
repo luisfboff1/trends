@@ -6,6 +6,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
+    "dev:local": "doppler run -- cross-env NEXTAUTH_URL=http://localhost:3000 next dev --webpack",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",

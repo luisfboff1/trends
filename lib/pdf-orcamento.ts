@@ -1,7 +1,5 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { calcularItem } from './pricing'
-import type { TipoMargem } from './pricing'
 
 export interface PdfItem {
   tipo_papel_nome: string
@@ -11,15 +9,22 @@ export interface PdfItem {
   quantidade: number
   preco_m2: number
   observacoes?: string
+  // New calc fields (optional for backward compat)
+  quantidade_rolos?: number
+  metragem_por_rolo?: number
+  preco_venda?: number
+  preco_unitario?: number
 }
 
 export interface PdfOrcamentoOptions {
   numero: string
   data: string
   status: string
-  tipo_margem: TipoMargem
+  tipo_margem: string
   observacoes?: string
   valor_total: number
+  frete_valor?: number
+  condicao_pagamento_nome?: string
   cliente: {
     razao_social: string
     cnpj: string
@@ -165,28 +170,20 @@ export async function gerarPdfOrcamento(opts: PdfOrcamentoOptions): Promise<void
   y += 4
 
   const rows = opts.itens.map((item) => {
-    const calc = calcularItem({
-      largura_mm: item.largura_mm,
-      altura_mm: item.altura_mm,
-      colunas: item.colunas,
-      quantidade: item.quantidade,
-      preco_m2: item.preco_m2,
-      tipo_margem: opts.tipo_margem,
-    })
     return [
       item.tipo_papel_nome,
       `${item.largura_mm} × ${item.altura_mm} mm`,
       String(item.colunas),
       item.quantidade.toLocaleString('pt-BR'),
-      calc.desconto_pct > 0 ? `-${(calc.desconto_pct * 100).toFixed(0)}%` : '—',
-      formatCurrency(calc.preco_por_mil),
-      formatCurrency(calc.valor_total),
+      item.quantidade_rolos != null ? String(item.quantidade_rolos) : '—',
+      item.preco_unitario != null ? formatCurrency(item.preco_unitario) : '—',
+      item.preco_venda != null ? formatCurrency(item.preco_venda) : '—',
     ]
   })
 
   autoTable(doc, {
     startY: y,
-    head: [['Tipo de Papel', 'Dimensões', 'Col.', 'Qtd.', 'Desconto', 'Preço/Mil', 'Total']],
+    head: [['Material', 'Dimensões', 'Col.', 'Qtd.', 'Rolos', 'Preço/unid', 'Total']],
     body: rows,
     margin: { left: margin, right: margin },
     styles: { fontSize: 8, cellPadding: 2.5 },
@@ -224,36 +221,56 @@ export async function gerarPdfOrcamento(opts: PdfOrcamentoOptions): Promise<void
   const afterTable = (doc as any).lastAutoTable.finalY + 6
 
   // ── Total box ────────────────────────────────────────────────────────────────
-  const boxW = 70
+  const boxW = 80
   const boxX = pageW - margin - boxW
+  let boxY = afterTable
+
+  if (opts.frete_valor && opts.frete_valor > 0) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.setTextColor(...GRAY)
+    doc.text(`Frete: ${formatCurrency(opts.frete_valor)}`, boxX + 4, boxY + 5)
+    boxY += 10
+  }
 
   doc.setFillColor(RED[0], RED[1], RED[2])
-  doc.roundedRect(boxX, afterTable, boxW, 12, 2, 2, 'F')
+  doc.roundedRect(boxX, boxY, boxW, 12, 2, 2, 'F')
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(10)
   doc.setTextColor(...WHITE)
-  doc.text('TOTAL', boxX + 4, afterTable + 8)
-  doc.text(formatCurrency(opts.valor_total), boxX + boxW - 4, afterTable + 8, { align: 'right' })
+  doc.text('TOTAL', boxX + 4, boxY + 8)
+  doc.text(formatCurrency(opts.valor_total), boxX + boxW - 4, boxY + 8, { align: 'right' })
 
-  // ── Margem / condições ───────────────────────────────────────────────────────
-  let infoY = afterTable + 18
+  // ── Info / conditions ────────────────────────────────────────────────────────
+  let infoY = boxY + 18
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   doc.setTextColor(...GRAY)
-  doc.text(
-    `Tipo de margem: ${opts.tipo_margem === 'vendedor' ? 'Vendedor (180%)' : 'Revenda (110%)'}`,
-    margin,
-    infoY
-  )
+
+  if (opts.condicao_pagamento_nome) {
+    doc.text(`Condição de pagamento: ${opts.condicao_pagamento_nome}`, margin, infoY)
+    infoY += 5
+  }
 
   if (opts.observacoes) {
-    infoY += 6
     doc.setFont('helvetica', 'italic')
     doc.text(`Observações: ${opts.observacoes}`, margin, infoY, {
       maxWidth: pageW - margin * 2,
     })
+    infoY += 6
   }
+
+  // Validade + ±10% warning
+  infoY += 2
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(7)
+  doc.setTextColor(...RED)
+  doc.text('Validade deste orçamento: 7 dias.', margin, infoY)
+  infoY += 4
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(...GRAY)
+  doc.text('Poderá haver variação de ±10% na quantidade entregue, conforme prática do segmento.', margin, infoY)
 
   // ── Footer ───────────────────────────────────────────────────────────────────
   const pageH = doc.internal.pageSize.getHeight()

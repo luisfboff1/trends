@@ -4,7 +4,8 @@ import { useRouter } from 'next/router'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, Users, FileText, ShoppingCart,
-  Layers, ChevronLeft, LogOut, Tag, X
+  Layers, ChevronLeft, LogOut, Tag, X,
+  Package, CreditCard, BarChart3
 } from 'lucide-react'
 import { useSession, signOut } from 'next-auth/react'
 import { useSidebarStore } from '@/store/sidebar'
@@ -15,7 +16,9 @@ const navItems = [
   { href: '/clientes', label: 'Clientes', icon: Users },
   { href: '/orcamentos', label: 'Orçamentos', icon: FileText },
   { href: '/pedidos', label: 'Pedidos', icon: ShoppingCart },
-  { href: '/tipos-papel', label: 'Tipos de Papel', icon: Layers, adminOnly: true },
+  { href: '/materiais', label: 'Materiais', icon: Package, adminOnly: true },
+  { href: '/tabelas-margem', label: 'Tabelas de Margem', icon: BarChart3, adminOnly: true },
+  { href: '/condicoes-pagamento', label: 'Cond. Pagamento', icon: CreditCard, adminOnly: true },
   { href: '/usuarios', label: 'Usuários', icon: Tag, adminOnly: true },
 ]
 

@@ -25,6 +25,70 @@ export const tiposPapelService = {
   delete: (id: number) => api.delete(`/tipos-papel/${id}`),
 }
 
+// ── Fornecedores de Papel ─────────────────────────────────────────────────────
+export const fornecedoresPapelService = {
+  list: (tipoPapelId: number) => api.get(`/tipos-papel/${tipoPapelId}/fornecedores`),
+  create: (tipoPapelId: number, data: unknown) => api.post(`/tipos-papel/${tipoPapelId}/fornecedores`, data),
+  update: (tipoPapelId: number, fornecedorId: number, data: unknown) =>
+    api.put(`/tipos-papel/${tipoPapelId}/fornecedores/${fornecedorId}`, data),
+  delete: (tipoPapelId: number, fornecedorId: number) =>
+    api.delete(`/tipos-papel/${tipoPapelId}/fornecedores/${fornecedorId}`),
+}
+
+// ── Facas ─────────────────────────────────────────────────────────────────────
+export const facasService = {
+  list: (tipo?: string) => api.get('/facas', { params: tipo ? { tipo } : {} }),
+  get: (id: number) => api.get(`/facas/${id}`),
+  create: (data: unknown) => api.post('/facas', data),
+  update: (id: number, data: unknown) => api.put(`/facas/${id}`, data),
+  delete: (id: number) => api.delete(`/facas/${id}`),
+}
+
+// ── Cores Pantone ─────────────────────────────────────────────────────────────
+export const coresPantoneService = {
+  list: () => api.get('/cores-pantone'),
+  get: (id: number) => api.get(`/cores-pantone/${id}`),
+  create: (data: unknown) => api.post('/cores-pantone', data),
+  update: (id: number, data: unknown) => api.put(`/cores-pantone/${id}`, data),
+  delete: (id: number) => api.delete(`/cores-pantone/${id}`),
+}
+
+// ── Tubetes ───────────────────────────────────────────────────────────────────
+export const tubetesService = {
+  list: () => api.get('/tubetes'),
+  get: (id: number) => api.get(`/tubetes/${id}`),
+  create: (data: unknown) => api.post('/tubetes', data),
+  update: (id: number, data: unknown) => api.put(`/tubetes/${id}`, data),
+  delete: (id: number) => api.delete(`/tubetes/${id}`),
+}
+
+// ── Acabamentos ───────────────────────────────────────────────────────────────
+export const acabamentosService = {
+  list: () => api.get('/acabamentos'),
+  get: (id: number) => api.get(`/acabamentos/${id}`),
+  create: (data: unknown) => api.post('/acabamentos', data),
+  update: (id: number, data: unknown) => api.put(`/acabamentos/${id}`, data),
+  delete: (id: number) => api.delete(`/acabamentos/${id}`),
+}
+
+// ── Condições de Pagamento ────────────────────────────────────────────────────
+export const condicoesPagamentoService = {
+  list: () => api.get('/condicoes-pagamento'),
+  get: (id: number) => api.get(`/condicoes-pagamento/${id}`),
+  create: (data: unknown) => api.post('/condicoes-pagamento', data),
+  update: (id: number, data: unknown) => api.put(`/condicoes-pagamento/${id}`, data),
+  delete: (id: number) => api.delete(`/condicoes-pagamento/${id}`),
+}
+
+// ── Tabelas de Margem ─────────────────────────────────────────────────────────
+export const tabelasMargemService = {
+  list: () => api.get('/tabelas-margem'),
+  get: (id: number) => api.get(`/tabelas-margem/${id}`),
+  create: (data: unknown) => api.post('/tabelas-margem', data),
+  update: (id: number, data: unknown) => api.put(`/tabelas-margem/${id}`, data),
+  delete: (id: number) => api.delete(`/tabelas-margem/${id}`),
+}
+
 // ── Orçamentos ────────────────────────────────────────────────────────────────
 export const orcamentosService = {
   list: (params?: { page?: number; limit?: number; status?: string }) =>
@@ -34,6 +98,12 @@ export const orcamentosService = {
   update: (id: number, data: unknown) => api.put(`/orcamentos/${id}`, data),
   delete: (id: number) => api.delete(`/orcamentos/${id}`),
   converter: (id: number) => api.post(`/orcamentos/${id}/converter`),
+  calcular: (id: number, data: unknown) => api.post(`/orcamentos/${id}/calcular`, data),
+}
+
+// ── Histórico de Frete ────────────────────────────────────────────────────────
+export const historicoFreteService = {
+  list: (clienteId: number) => api.get(`/historico-frete/${clienteId}`),
 }
 
 // ── Pedidos ───────────────────────────────────────────────────────────────────
@@ -58,6 +128,8 @@ export const usuariosService = {
   approve: (id: number) => api.patch(`/usuarios/${id}`, { ativo: true }),
   reject: (id: number) => api.patch(`/usuarios/${id}`, { ativo: false }),
   updateTipo: (id: number, tipo: string) => api.patch(`/usuarios/${id}`, { tipo }),
+  updateTabelaMargem: (id: number, tabela_margem_id: number) =>
+    api.patch(`/usuarios/${id}`, { tabela_margem_id }),
   delete: (id: number) => api.delete(`/usuarios/${id}`),
 }
 

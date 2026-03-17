@@ -9,7 +9,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { usuariosService } from '@/services/api'
+import { usuariosService, tabelasMargemService } from '@/services/api'
+import type { TabelaMargem } from '@/types'
 import { useToast } from '@/hooks/use-toast'
 import { formatLocalDate } from '@/lib/utils'
 
@@ -23,6 +24,8 @@ interface UsuarioRow {
   avatar_url: string | null
   created_at: string
   aprovado_em: string | null
+  tabela_margem_id: number | null
+  tabela_margem_nome?: string
 }
 
 const TABS = [
@@ -43,6 +46,7 @@ export default function UsuariosPage() {
   const [createModal, setCreateModal] = useState(false)
   const [saving, setSaving] = useState(false)
   const [deleteId, setDeleteId] = useState<number | null>(null)
+  const [tabelasMargem, setTabelasMargem] = useState<TabelaMargem[]>([])
 
   const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<{
     nome: string; email: string; senha: string; tipo: string
@@ -63,6 +67,7 @@ export default function UsuariosPage() {
   useEffect(() => {
     if (!isAdmin) { router.push('/dashboard'); return }
     load()
+    tabelasMargemService.list().then(({ data }) => setTabelasMargem(data.data.data ?? data.data)).catch(() => {})
   }, [load, isAdmin])
 
   async function handleApprove(id: number) {
@@ -89,6 +94,16 @@ export default function UsuariosPage() {
     try {
       await usuariosService.updateTipo(id, tipo)
       toast({ title: 'Tipo atualizado' })
+      load()
+    } catch {
+      toast({ title: 'Erro', variant: 'destructive' })
+    }
+  }
+
+  async function handleChangeTabelaMargem(id: number, tabela_margem_id: number | null) {
+    try {
+      await usuariosService.updateTabelaMargem(id, tabela_margem_id as number)
+      toast({ title: 'Tabela de margem atualizada' })
       load()
     } catch {
       toast({ title: 'Erro', variant: 'destructive' })
@@ -153,6 +168,7 @@ export default function UsuariosPage() {
               <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)]">Usuário</th>
               <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)] hidden md:table-cell">Email</th>
               <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)]">Tipo</th>
+              <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)] hidden lg:table-cell">Tabela Margem</th>
               <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)]">Status</th>
               <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)] hidden lg:table-cell">Cadastro</th>
               <th className="w-28" />
@@ -160,12 +176,12 @@ export default function UsuariosPage() {
           </thead>
           <tbody>
             {loading && (
-              <tr><td colSpan={6} className="text-center py-12">
+              <tr><td colSpan={7} className="text-center py-12">
                 <div className="h-5 w-5 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin mx-auto" />
               </td></tr>
             )}
             {!loading && usuarios.length === 0 && (
-              <tr><td colSpan={6} className="text-center py-12 text-[var(--muted-foreground)]">
+              <tr><td colSpan={7} className="text-center py-12 text-[var(--muted-foreground)]">
                 {tab === 'pendente' ? 'Nenhum usuário aguardando aprovação' : 'Nenhum usuário encontrado'}
               </td></tr>
             )}
@@ -196,6 +212,21 @@ export default function UsuariosPage() {
                       <SelectItem value="admin">Admin</SelectItem>
                     </SelectContent>
                   </Select>
+                </td>
+                <td className="px-4 py-3 hidden lg:table-cell">
+                  {u.ativo && (
+                    <Select value={u.tabela_margem_id?.toString() ?? 'none'} onValueChange={(v) => handleChangeTabelaMargem(u.id, v === 'none' ? null : Number(v))}>
+                      <SelectTrigger className="h-7 w-32 text-xs">
+                        <SelectValue placeholder="Sem tabela" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Sem tabela</SelectItem>
+                        {tabelasMargem.filter(t => t.ativo).map(t => (
+                          <SelectItem key={t.id} value={t.id.toString()}>{t.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   {u.ativo
