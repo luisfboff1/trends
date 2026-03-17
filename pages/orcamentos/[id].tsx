@@ -462,10 +462,10 @@ export default function OrcamentoDetailPage() {
 
               <div className="space-y-1.5">
                 <Label>Condição de Pagamento</Label>
-                <Select value={String(condicaoPagamentoId)} onValueChange={(v) => setCondicaoPagamentoId(v ? Number(v) : '')} disabled={isReadonly}>
+                <Select value={condicaoPagamentoId ? String(condicaoPagamentoId) : '__none__'} onValueChange={(v) => setCondicaoPagamentoId(v === '__none__' ? '' : Number(v))} disabled={isReadonly}>
                   <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Nenhuma</SelectItem>
+                    <SelectItem value="__none__">Nenhuma</SelectItem>
                     {condicoesPagamento.filter(c => c.ativo).map(c => (
                       <SelectItem key={c.id} value={String(c.id)}>{c.nome}</SelectItem>
                     ))}
@@ -665,10 +665,10 @@ export default function OrcamentoDetailPage() {
 
                   <div className="space-y-1.5">
                     <Label className="text-xs">Tubete</Label>
-                    <Select value={String(item.tubete_id ?? '')} onValueChange={(v) => updateItem(idx, { tubete_id: v ? Number(v) : null })} disabled={isReadonly}>
+                    <Select value={item.tubete_id ? String(item.tubete_id) : '__none__'} onValueChange={(v) => updateItem(idx, { tubete_id: v === '__none__' ? null : Number(v) })} disabled={isReadonly}>
                       <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Tubete..." /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Nenhum</SelectItem>
+                        <SelectItem value="__none__">Nenhum</SelectItem>
                         {tubetes.filter(t => t.ativo !== false).map(t => (
                           <SelectItem key={t.id} value={String(t.id)}>{t.diametro_mm}mm</SelectItem>
                         ))}
