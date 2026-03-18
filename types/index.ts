@@ -44,12 +44,17 @@ export interface Cliente {
   cnpj: string
   email?: string
   telefone?: string
+  celular?: string
   endereco?: string
+  bairro?: string
+  cep?: string
   cidade?: string
   estado?: string
   vendedor_id: number
   vendedor_nome?: string  // JOIN
   ativo: boolean
+  uniplus_id?: string
+  uniplus_updated_at?: string
   created_at: string
   updated_at: string
 }
@@ -82,6 +87,8 @@ export interface TipoPapel {
   total?: number
   data_compra?: string
   ativo: boolean
+  uniplus_id?: string
+  uniplus_updated_at?: string
   created_at: string
   updated_at: string
 }

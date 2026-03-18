@@ -133,4 +133,18 @@ export const usuariosService = {
   delete: (id: number) => api.delete(`/usuarios/${id}`),
 }
 
+// ── UniPlus ERP ───────────────────────────────────────────────────────────────
+export const uniplusService = {
+  getConfig: () => api.get('/uniplus/config'),
+  saveConfig: (data: { server_url: string; auth_code: string; user_id: string; user_password: string }) =>
+    api.post('/uniplus/config', data),
+  testConnection: (data: { server_url: string; auth_code: string; user_id: string; user_password: string }) =>
+    api.post('/uniplus/config?test=true', data),
+  sync: (tipo: 'full' | 'clientes' | 'produtos' | 'condicoes_pagamento' | 'vendas' | 'vendedores') =>
+    api.post('/uniplus/sync', { tipo, direcao: 'import' }),
+  getStatus: () => api.get('/uniplus/status'),
+  exportRecord: (tipo: 'cliente' | 'orcamento' | 'pedido', id: number) =>
+    api.post('/uniplus/export', { tipo, id }),
+}
+
 export default api

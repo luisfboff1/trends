@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, Users, FileText, ShoppingCart,
   Layers, ChevronLeft, LogOut, Tag, X,
-  Package, CreditCard, BarChart3
+  Package, CreditCard, BarChart3, RefreshCw
 } from 'lucide-react'
 import { useSession, signOut } from 'next-auth/react'
 import { useSidebarStore } from '@/store/sidebar'
@@ -20,6 +20,7 @@ const navItems = [
   { href: '/tabelas-margem', label: 'Tabelas de Margem', icon: BarChart3, adminOnly: true },
   { href: '/condicoes-pagamento', label: 'Cond. Pagamento', icon: CreditCard, adminOnly: true },
   { href: '/usuarios', label: 'Usuários', icon: Tag, adminOnly: true },
+  { href: '/uniplus', label: 'UniPlus', icon: RefreshCw, adminOnly: true },
 ]
 
 export function Sidebar() {
