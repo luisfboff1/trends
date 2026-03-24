@@ -302,14 +302,22 @@ export default function DashboardPage() {
                       innerRadius="38%" outerRadius="65%"
                       paddingAngle={3}
                       dataKey="total" nameKey="tipo"
-                      activeIndex={donutActive}
-                      activeShape={renderActiveShape}
+                      activeShape={renderActiveShape as any}
                       onMouseEnter={onDonutEnter}
                       onMouseLeave={onDonutLeave}
                       animationBegin={100} animationDuration={800} animationEasing="ease-out"
                     >
                       {data.tipoProducao.map((_, i) => (
-                        <Cell key={i} fill={`url(#donut-${i})`} stroke="rgba(255,255,255,0.8)" strokeWidth={1} />
+                        <Cell
+                          key={i}
+                          fill={`url(#donut-${i})`}
+                          stroke="rgba(255,255,255,0.8)"
+                          strokeWidth={donutActive === i ? 2 : 1}
+                          style={{
+                            opacity: donutActive !== undefined && donutActive !== i ? 0.4 : 1,
+                            transition: 'opacity 200ms ease, stroke-width 200ms ease',
+                          }}
+                        />
                       ))}
                     </Pie>
                     <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM} labelStyle={TOOLTIP_LABEL} />
