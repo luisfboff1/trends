@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { pedidosService } from '@/services/api'
 import { useToast } from '@/hooks/use-toast'
+import { formatLocalDate } from '@/lib/utils'
 import type { Pedido } from '@/types'
 
 const STATUS_OPTIONS = [
@@ -32,6 +33,21 @@ const TIPO_PRODUCAO_OPTIONS = [
   { value: 'LABEL', label: 'Label' },
 ]
 
+const YEAR_OPTIONS = [
+  { value: 'all', label: 'Todos os Anos' },
+  ...Array.from({ length: 8 }, (_, i) => ({ value: String(2019 + i), label: String(2019 + i) })),
+]
+
+const MONTH_OPTIONS = [
+  { value: 'all', label: 'Todos os Meses' },
+  { value: '01', label: 'Janeiro' }, { value: '02', label: 'Fevereiro' },
+  { value: '03', label: 'Março' }, { value: '04', label: 'Abril' },
+  { value: '05', label: 'Maio' }, { value: '06', label: 'Junho' },
+  { value: '07', label: 'Julho' }, { value: '08', label: 'Agosto' },
+  { value: '09', label: 'Setembro' }, { value: '10', label: 'Outubro' },
+  { value: '11', label: 'Novembro' }, { value: '12', label: 'Dezembro' },
+]
+
 export default function PedidosPage() {
   const { toast } = useToast()
   const [pedidos, setPedidos] = useState<Pedido[]>([])
@@ -39,6 +55,8 @@ export default function PedidosPage() {
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState('all')
   const [tipoProducaoFilter, setTipoProducaoFilter] = useState('all')
+  const [yearFilter, setYearFilter] = useState('all')
+  const [monthFilter, setMonthFilter] = useState('all')
   const [clienteSearch, setClienteSearch] = useState('')
   const [clienteQuery, setClienteQuery] = useState('')
   const [loading, setLoading] = useState(true)
@@ -59,6 +77,8 @@ export default function PedidosPage() {
         tipo_producao: tipoProducaoFilter === 'all' ? undefined : tipoProducaoFilter,
         cliente: clienteQuery || undefined,
         exclude_origem: 'uniplus',
+        ano: yearFilter === 'all' ? undefined : yearFilter,
+        mes_num: monthFilter === 'all' ? undefined : monthFilter,
       })
       setPedidos(data.data.data)
       setTotal(data.data.total)
@@ -67,7 +87,7 @@ export default function PedidosPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, statusFilter, tipoProducaoFilter, clienteQuery])
+  }, [page, statusFilter, tipoProducaoFilter, clienteQuery, yearFilter, monthFilter])
 
   useEffect(() => { load() }, [load])
 
@@ -129,16 +149,22 @@ export default function PedidosPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1) }}>
-          <SelectTrigger className="w-40"><SelectValue placeholder="Status" /></SelectTrigger>
-          <SelectContent>
-            {STATUS_OPTIONS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-          </SelectContent>
-        </Select>
         <Select value={tipoProducaoFilter} onValueChange={(v) => { setTipoProducaoFilter(v); setPage(1) }}>
           <SelectTrigger className="w-44"><SelectValue placeholder="Tipo Produção" /></SelectTrigger>
           <SelectContent>
             {TIPO_PRODUCAO_OPTIONS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={yearFilter} onValueChange={(v) => { setYearFilter(v); setPage(1) }}>
+          <SelectTrigger className="w-36"><SelectValue placeholder="Ano" /></SelectTrigger>
+          <SelectContent>
+            {YEAR_OPTIONS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={monthFilter} onValueChange={(v) => { setMonthFilter(v); setPage(1) }}>
+          <SelectTrigger className="w-40"><SelectValue placeholder="Mês" /></SelectTrigger>
+          <SelectContent>
+            {MONTH_OPTIONS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
           </SelectContent>
         </Select>
         <div className="relative">
@@ -175,7 +201,7 @@ export default function PedidosPage() {
               <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)] hidden lg:table-cell">Etiqueta</th>
               <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)] hidden lg:table-cell">Qtd</th>
               <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)] hidden xl:table-cell">Produzido</th>
-              <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)] hidden xl:table-cell">Mês Ref.</th>
+              <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)] hidden lg:table-cell">Data</th>
               <th className="w-16" />
             </tr>
           </thead>
@@ -198,7 +224,9 @@ export default function PedidosPage() {
                 <td className="px-4 py-3 hidden lg:table-cell text-xs font-mono">{p.etiqueta_dimensao ?? '—'}</td>
                 <td className="px-4 py-3 hidden lg:table-cell text-xs">{p.quantidade != null ? Number(p.quantidade).toLocaleString('pt-BR') : '—'}</td>
                 <td className="px-4 py-3 hidden xl:table-cell text-xs">{p.produzido_por ?? '—'}</td>
-                <td className="px-4 py-3 hidden xl:table-cell text-xs text-[var(--muted-foreground)]">{p.mes_referencia ?? '—'}</td>
+                <td className="px-4 py-3 hidden lg:table-cell text-xs text-[var(--muted-foreground)]">
+                  {p.data_producao ? formatLocalDate(p.data_producao) : p.data_entrega ? formatLocalDate(p.data_entrega) : '—'}
+                </td>
                 <td className="px-4 py-3">
                   <Button variant="ghost" size="icon" onClick={() => { setEditModal({ open: true, pedido: p }); setNewStatus(p.status) }}>
                     <Pencil size={14} />

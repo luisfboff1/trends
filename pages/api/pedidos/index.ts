@@ -17,6 +17,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     const material = req.query.material as string | undefined
     const cliente = req.query.cliente as string | undefined
     const mes = req.query.mes as string | undefined
+    const ano = req.query.ano ? Number(req.query.ano) : undefined
+    const mes_num = req.query.mes_num ? Number(req.query.mes_num) : undefined
     const isAdmin = user.tipo === 'admin'
 
     const [{ count }] = await sql`
@@ -30,6 +32,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       ${material ? sql`AND p.material ILIKE ${'%' + material + '%'}` : sql``}
       ${cliente ? sql`AND (p.cliente_nome ILIKE ${'%' + cliente + '%'} OR c.razao_social ILIKE ${'%' + cliente + '%'})` : sql``}
       ${mes ? sql`AND p.mes_referencia = ${mes}` : sql``}
+      ${ano ? sql`AND EXTRACT(YEAR FROM COALESCE(p.data_producao, p.data_entrega)) = ${ano}` : sql``}
+      ${mes_num ? sql`AND EXTRACT(MONTH FROM COALESCE(p.data_producao, p.data_entrega)) = ${mes_num}` : sql``}
     `
     const data = await sql`
       SELECT p.*, c.razao_social as cliente_razao_social, u.nome as vendedor_nome
@@ -44,7 +48,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       ${material ? sql`AND p.material ILIKE ${'%' + material + '%'}` : sql``}
       ${cliente ? sql`AND (p.cliente_nome ILIKE ${'%' + cliente + '%'} OR c.razao_social ILIKE ${'%' + cliente + '%'})` : sql``}
       ${mes ? sql`AND p.mes_referencia = ${mes}` : sql``}
-      ORDER BY p.created_at DESC
+      ${ano ? sql`AND EXTRACT(YEAR FROM COALESCE(p.data_producao, p.data_entrega)) = ${ano}` : sql``}
+      ${mes_num ? sql`AND EXTRACT(MONTH FROM COALESCE(p.data_producao, p.data_entrega)) = ${mes_num}` : sql``}
+      ORDER BY COALESCE(p.data_producao, p.data_entrega, p.created_at) DESC
       LIMIT ${limit} OFFSET ${offset}
     `
     return res.json({
