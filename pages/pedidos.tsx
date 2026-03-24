@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { GetServerSideProps } from 'next'
 import { getSession } from 'next-auth/react'
 import { useRouter } from 'next/router'
-import { Eye, Pencil } from 'lucide-react'
+import { Eye, Pencil, Upload, Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { pedidosService } from '@/services/api'
@@ -24,6 +25,15 @@ const STATUS_BADGE: Record<string, string> = {
   entregue: 'badge-entregue', cancelado: 'badge-cancelado',
 }
 
+const TIPO_PRODUCAO_OPTIONS = [
+  { value: 'all', label: 'Todos os Tipos' },
+  { value: 'GRAFICAS', label: 'Gráficas' },
+  { value: 'FLEXO', label: 'Flexo' },
+  { value: 'LASER', label: 'Laser' },
+  { value: 'PERSONALIZAR', label: 'Personalizar' },
+  { value: 'LABEL', label: 'Label' },
+]
+
 export default function PedidosPage() {
   const router = useRouter()
   const { toast } = useToast()
@@ -31,15 +41,27 @@ export default function PedidosPage() {
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState('all')
+  const [tipoProducaoFilter, setTipoProducaoFilter] = useState('all')
+  const [clienteSearch, setClienteSearch] = useState('')
+  const [clienteQuery, setClienteQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [editModal, setEditModal] = useState<{ open: boolean; pedido?: Pedido }>({ open: false })
   const [newStatus, setNewStatus] = useState('')
   const [saving, setSaving] = useState(false)
+  const [importModal, setImportModal] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const searchTimeout = useRef<NodeJS.Timeout>()
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const { data } = await pedidosService.list({ page, limit: 20, status: statusFilter === 'all' ? undefined : statusFilter })
+      const { data } = await pedidosService.list({
+        page, limit: 20,
+        status: statusFilter === 'all' ? undefined : statusFilter,
+        tipo_producao: tipoProducaoFilter === 'all' ? undefined : tipoProducaoFilter,
+        cliente: clienteQuery || undefined,
+      })
       setPedidos(data.data.data)
       setTotal(data.data.total)
     } catch {
@@ -47,9 +69,18 @@ export default function PedidosPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, statusFilter])
+  }, [page, statusFilter, tipoProducaoFilter, clienteQuery])
 
   useEffect(() => { load() }, [load])
+
+  function handleClienteSearch(val: string) {
+    setClienteSearch(val)
+    clearTimeout(searchTimeout.current)
+    searchTimeout.current = setTimeout(() => {
+      setClienteQuery(val)
+      setPage(1)
+    }, 400)
+  }
 
   async function handleUpdateStatus() {
     if (!editModal.pedido || !newStatus) return
@@ -66,46 +97,117 @@ export default function PedidosPage() {
     }
   }
 
+  async function handleImport() {
+    const file = fileRef.current?.files?.[0]
+    if (!file) return
+    setImporting(true)
+    try {
+      const text = await file.text()
+      const records = JSON.parse(text)
+      if (!Array.isArray(records)) throw new Error('JSON inválido')
+
+      // Send in chunks of 500 to avoid request size limits
+      const chunkSize = 500
+      let totalInserted = 0
+      let totalErrors = 0
+
+      for (let i = 0; i < records.length; i += chunkSize) {
+        const chunk = records.slice(i, i + chunkSize)
+        const { data } = await pedidosService.import(chunk, i === 0)
+        totalInserted += data.data?.inserted || 0
+        totalErrors += data.data?.errors || 0
+      }
+
+      toast({ title: `Importação concluída: ${totalInserted} pedidos inseridos` })
+      setImportModal(false)
+      load()
+    } catch (err: any) {
+      toast({ title: `Erro na importação: ${err.message}`, variant: 'destructive' })
+    } finally {
+      setImporting(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1) }}>
           <SelectTrigger className="w-40"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
             {STATUS_OPTIONS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select value={tipoProducaoFilter} onValueChange={(v) => { setTipoProducaoFilter(v); setPage(1) }}>
+          <SelectTrigger className="w-44"><SelectValue placeholder="Tipo Produção" /></SelectTrigger>
+          <SelectContent>
+            {TIPO_PRODUCAO_OPTIONS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <div className="relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
+          <Input
+            placeholder="Buscar cliente..."
+            value={clienteSearch}
+            onChange={(e) => handleClienteSearch(e.target.value)}
+            className="pl-9 w-52"
+          />
+          {clienteSearch && (
+            <button onClick={() => { setClienteSearch(''); setClienteQuery(''); setPage(1) }} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+              <X size={14} />
+            </button>
+          )}
+        </div>
+        <div className="ml-auto">
+          <Button variant="outline" size="sm" onClick={() => setImportModal(true)}>
+            <Upload size={14} className="mr-2" /> Importar Excel
+          </Button>
+        </div>
       </div>
 
       <div className="rounded-xl border border-[var(--border)] overflow-hidden bg-[var(--card)]">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-[var(--border)] bg-[var(--muted)]/30">
               <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)]">Número</th>
               <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)]">Cliente</th>
               <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)]">Status</th>
+              <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)] hidden md:table-cell">Material</th>
+              <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)] hidden lg:table-cell">Etiqueta</th>
+              <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)] hidden lg:table-cell">Qtd</th>
+              <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)] hidden xl:table-cell">Tipo</th>
               <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)] hidden md:table-cell">Valor</th>
-              <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)] hidden lg:table-cell">Data</th>
+              <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)] hidden lg:table-cell">Data Entrega</th>
               <th className="w-20" />
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan={6} className="text-center py-12"><div className="h-5 w-5 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin mx-auto" /></td></tr>}
-            {!loading && pedidos.length === 0 && <tr><td colSpan={6} className="text-center py-12 text-[var(--muted-foreground)]">Nenhum pedido</td></tr>}
+            {loading && <tr><td colSpan={10} className="text-center py-12"><div className="h-5 w-5 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin mx-auto" /></td></tr>}
+            {!loading && pedidos.length === 0 && <tr><td colSpan={10} className="text-center py-12 text-[var(--muted-foreground)]">Nenhum pedido</td></tr>}
             {!loading && pedidos.map((p) => (
               <tr key={p.id} className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--muted)]/30 transition-colors">
-                <td className="px-4 py-3 font-mono text-xs font-medium">{p.numero}</td>
-                <td className="px-4 py-3">{(p as any).cliente_nome ?? '—'}</td>
+                <td className="px-4 py-3 font-mono text-xs font-medium">
+                  {p.ordem_fabricacao ? `OF-${p.ordem_fabricacao}` : p.numero}
+                </td>
+                <td className="px-4 py-3">{p.cliente_nome ?? p.cliente_razao_social ?? '—'}</td>
                 <td className="px-4 py-3">
                   <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold ${STATUS_BADGE[p.status]}`}>
                     {p.status}
                   </span>
                 </td>
+                <td className="px-4 py-3 hidden md:table-cell text-xs">{p.material ?? '—'}</td>
+                <td className="px-4 py-3 hidden lg:table-cell text-xs font-mono">{p.etiqueta_dimensao ?? '—'}</td>
+                <td className="px-4 py-3 hidden lg:table-cell text-xs">{p.quantidade != null ? Number(p.quantidade).toLocaleString('pt-BR') : '—'}</td>
+                <td className="px-4 py-3 hidden xl:table-cell">
+                  {p.tipo_producao && (
+                    <span className="inline-flex items-center rounded-md bg-[var(--muted)] px-2 py-0.5 text-xs">{p.tipo_producao}</span>
+                  )}
+                </td>
                 <td className="px-4 py-3 hidden md:table-cell">
                   {p.valor_total ? formatCurrency(Number(p.valor_total)) : '—'}
                 </td>
                 <td className="px-4 py-3 text-[var(--muted-foreground)] text-xs hidden lg:table-cell">
-                  {formatLocalDate(p.created_at)}
+                  {p.data_entrega ? formatLocalDate(p.data_entrega) : '—'}
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex gap-1 justify-end">
@@ -123,6 +225,7 @@ export default function PedidosPage() {
             ))}
           </tbody>
         </table>
+        </div>
         {total > 20 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border)]">
             <span className="text-xs text-[var(--muted-foreground)]">{total} pedidos</span>
@@ -136,17 +239,41 @@ export default function PedidosPage() {
 
       <Dialog open={editModal.open} onOpenChange={(o) => !o && setEditModal({ open: false })}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Atualizar Status — {editModal.pedido?.numero}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Atualizar Status — {editModal.pedido?.ordem_fabricacao ? `OF-${editModal.pedido.ordem_fabricacao}` : editModal.pedido?.numero}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <Select value={newStatus} onValueChange={setNewStatus}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {STATUS_OPTIONS.filter(s => s.value).map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                {STATUS_OPTIONS.filter(s => s.value !== 'all').map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
               </SelectContent>
             </Select>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setEditModal({ open: false })}>Cancelar</Button>
               <Button onClick={handleUpdateStatus} disabled={saving}>Salvar</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={importModal} onOpenChange={setImportModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Importar Pedidos do Excel</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-[var(--muted-foreground)]">
+              Selecione o arquivo <code>pedidos_import.json</code> gerado pelo script de importação.
+              Dados importados anteriormente serão substituídos.
+            </p>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".json"
+              className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-[var(--primary)] file:text-[var(--primary-foreground)] hover:file:opacity-80"
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setImportModal(false)}>Cancelar</Button>
+              <Button onClick={handleImport} disabled={importing}>
+                {importing ? 'Importando...' : 'Importar'}
+              </Button>
             </div>
           </div>
         </DialogContent>

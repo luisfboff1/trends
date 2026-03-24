@@ -405,12 +405,25 @@ export interface Pedido {
   orcamento_numero?: string   // JOIN
   cliente_id: number
   cliente_razao_social?: string // JOIN
+  cliente_nome?: string
   vendedor_id: number
   vendedor_nome?: string       // JOIN
   status: PedidoStatus
   observacoes?: string
   valor_total?: number
   data_entrega?: string
+  // Production fields
+  ordem_fabricacao?: string
+  material?: string
+  codigo_faca?: string
+  etiqueta_dimensao?: string
+  quantidade?: number
+  produzido_por?: string
+  tipo_producao?: string
+  ordem_compra?: string
+  data_producao?: string
+  mes_referencia?: string
+  origem?: string
   created_at: string
   updated_at: string
 }

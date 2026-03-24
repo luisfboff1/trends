@@ -11,20 +11,35 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     const limit = Number(req.query.limit) || 20
     const offset = (page - 1) * limit
     const status = req.query.status as string | undefined
+    const origem = req.query.origem as string | undefined
+    const tipo_producao = req.query.tipo_producao as string | undefined
+    const material = req.query.material as string | undefined
+    const cliente = req.query.cliente as string | undefined
+    const mes = req.query.mes as string | undefined
     const isAdmin = user.tipo === 'admin'
 
     const [{ count }] = await sql`
       SELECT COUNT(*) FROM pedidos p
       WHERE ${isAdmin ? sql`true` : sql`p.vendedor_id = ${user.id}`}
       ${status ? sql`AND p.status = ${status}` : sql``}
+      ${origem ? sql`AND p.origem = ${origem}` : sql``}
+      ${tipo_producao ? sql`AND p.tipo_producao = ${tipo_producao}` : sql``}
+      ${material ? sql`AND p.material ILIKE ${'%' + material + '%'}` : sql``}
+      ${cliente ? sql`AND (p.cliente_nome ILIKE ${'%' + cliente + '%'} OR c.razao_social ILIKE ${'%' + cliente + '%'})` : sql``}
+      ${mes ? sql`AND p.mes_referencia = ${mes}` : sql``}
     `
     const data = await sql`
-      SELECT p.*, c.razao_social as cliente_nome, u.nome as vendedor_nome
+      SELECT p.*, c.razao_social as cliente_razao_social, u.nome as vendedor_nome
       FROM pedidos p
       LEFT JOIN clientes c ON p.cliente_id = c.id
       LEFT JOIN usuarios u ON p.vendedor_id = u.id
       WHERE ${isAdmin ? sql`true` : sql`p.vendedor_id = ${user.id}`}
       ${status ? sql`AND p.status = ${status}` : sql``}
+      ${origem ? sql`AND p.origem = ${origem}` : sql``}
+      ${tipo_producao ? sql`AND p.tipo_producao = ${tipo_producao}` : sql``}
+      ${material ? sql`AND p.material ILIKE ${'%' + material + '%'}` : sql``}
+      ${cliente ? sql`AND (p.cliente_nome ILIKE ${'%' + cliente + '%'} OR c.razao_social ILIKE ${'%' + cliente + '%'})` : sql``}
+      ${mes ? sql`AND p.mes_referencia = ${mes}` : sql``}
       ORDER BY p.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `
