@@ -145,6 +145,8 @@ export const uniplusService = {
   getStatus: () => api.get('/uniplus/status'),
   exportRecord: (tipo: 'cliente' | 'orcamento' | 'pedido', id: number) =>
     api.post('/uniplus/export', { tipo, id }),
+  browse: (tipo: 'entidades' | 'produtos' | 'vendas', limit = 50, offset = 0) =>
+    api.get('/uniplus/browse', { params: { tipo, limit, offset } }),
 }
 
 export default api
