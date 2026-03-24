@@ -108,7 +108,7 @@ export const historicoFreteService = {
 
 // ── Pedidos ───────────────────────────────────────────────────────────────────
 export const pedidosService = {
-  list: (params?: { page?: number; limit?: number; status?: string; origem?: string; exclude_origem?: string; tipo_producao?: string; material?: string; cliente?: string; mes?: string }) =>
+  list: (params?: { page?: number; limit?: number; status?: string; origem?: string; exclude_origem?: string; tipo_producao?: string; material?: string; cliente?: string; mes?: string; ano?: string; mes_num?: string }) =>
     api.get('/pedidos', { params }),
   get: (id: number) => api.get(`/pedidos/${id}`),
   update: (id: number, data: unknown) => api.put(`/pedidos/${id}`, data),
