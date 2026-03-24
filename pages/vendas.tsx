@@ -25,6 +25,8 @@ const STATUS_BADGE: Record<string, string> = {
   cancelado: 'badge-cancelado',
 }
 
+interface MonthStats { totalMes: number; valorMes: number }
+
 export default function VendasPage() {
   const { toast } = useToast()
   const [vendas, setVendas] = useState<Pedido[]>([])
@@ -34,6 +36,7 @@ export default function VendasPage() {
   const [clienteSearch, setClienteSearch] = useState('')
   const [clienteQuery, setClienteQuery] = useState('')
   const [loading, setLoading] = useState(true)
+  const [monthStats, setMonthStats] = useState<MonthStats>({ totalMes: 0, valorMes: 0 })
   const searchTimeout = useRef<NodeJS.Timeout>(undefined)
 
   const load = useCallback(async () => {
@@ -55,6 +58,10 @@ export default function VendasPage() {
   }, [page, statusFilter, clienteQuery])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    pedidosService.stats().then(r => setMonthStats(r.data.data.vendas)).catch(() => {})
+  }, [])
 
   function handleClienteSearch(val: string) {
     setClienteSearch(val)
@@ -84,8 +91,8 @@ export default function VendasPage() {
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">Valor Total</p>
-                <p className="text-xl font-bold mt-0.5">{formatCurrency(vendas.reduce((s, v) => s + (Number(v.valor_total) || 0), 0))}</p>
+                <p className="text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">Faturamento do Mês</p>
+                <p className="text-xl font-bold mt-0.5">{formatCurrency(monthStats.valorMes)}</p>
               </div>
               <div className="p-2 rounded-lg bg-emerald-50"><DollarSign size={16} className="text-emerald-600" /></div>
             </div>
@@ -95,12 +102,8 @@ export default function VendasPage() {
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">Ticket Médio</p>
-                <p className="text-xl font-bold mt-0.5">
-                  {vendas.length > 0
-                    ? formatCurrency(vendas.reduce((s, v) => s + (Number(v.valor_total) || 0), 0) / vendas.length)
-                    : 'R$ 0'}
-                </p>
+                <p className="text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">Vendas do Mês</p>
+                <p className="text-xl font-bold mt-0.5">{monthStats.totalMes}</p>
               </div>
               <div className="p-2 rounded-lg bg-purple-50"><TrendingUp size={16} className="text-purple-600" /></div>
             </div>
@@ -110,8 +113,12 @@ export default function VendasPage() {
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">Nesta Página</p>
-                <p className="text-xl font-bold mt-0.5">{vendas.length}</p>
+                <p className="text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">Ticket Médio (mês)</p>
+                <p className="text-xl font-bold mt-0.5">
+                  {monthStats.totalMes > 0
+                    ? formatCurrency(monthStats.valorMes / monthStats.totalMes)
+                    : 'R$ 0'}
+                </p>
               </div>
               <div className="p-2 rounded-lg bg-orange-50"><Hash size={16} className="text-orange-600" /></div>
             </div>

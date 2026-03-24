@@ -115,6 +115,7 @@ export const pedidosService = {
   import: (records: unknown[], clearPrevious?: boolean) =>
     api.post('/pedidos/import', { records, clearPrevious }),
   clearImport: () => api.delete('/pedidos/import'),
+  stats: () => api.get('/pedidos-stats'),
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────

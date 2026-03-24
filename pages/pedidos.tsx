@@ -49,10 +49,13 @@ const MONTH_OPTIONS = [
   { value: '11', label: 'Novembro' }, { value: '12', label: 'Dezembro' },
 ]
 
+interface PedidoMonthStats { totalMes: number; quantidadeMes: number }
+
 export default function PedidosPage() {
   const { toast } = useToast()
   const [pedidos, setPedidos] = useState<Pedido[]>([])
   const [total, setTotal] = useState(0)
+  const [monthStats, setMonthStats] = useState<PedidoMonthStats>({ totalMes: 0, quantidadeMes: 0 })
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState('all')
   const [tipoProducaoFilter, setTipoProducaoFilter] = useState('all')
@@ -91,6 +94,10 @@ export default function PedidosPage() {
   }, [page, statusFilter, tipoProducaoFilter, clienteQuery, yearFilter, monthFilter])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    pedidosService.stats().then(r => setMonthStats(r.data.data.pedidos)).catch(() => {})
+  }, [])
 
   function handleClienteSearch(val: string) {
     setClienteSearch(val)
@@ -166,8 +173,8 @@ export default function PedidosPage() {
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">Nesta Página</p>
-                <p className="text-xl font-bold mt-0.5">{pedidos.length}</p>
+                <p className="text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">Pedidos do Mês</p>
+                <p className="text-xl font-bold mt-0.5">{monthStats.totalMes}</p>
               </div>
               <div className="p-2 rounded-lg bg-blue-50"><Hash size={16} className="text-blue-600" /></div>
             </div>
@@ -177,8 +184,8 @@ export default function PedidosPage() {
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">Tipos Distintos</p>
-                <p className="text-xl font-bold mt-0.5">{new Set(pedidos.map(p => p.tipo_producao).filter(Boolean)).size}</p>
+                <p className="text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">Qtd. Produzida (mês)</p>
+                <p className="text-xl font-bold mt-0.5">{Number(monthStats.quantidadeMes).toLocaleString('pt-BR')}</p>
               </div>
               <div className="p-2 rounded-lg bg-purple-50"><Layers size={16} className="text-purple-600" /></div>
             </div>
