@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { GetServerSideProps } from 'next'
 import { getSession } from 'next-auth/react'
-import { Pencil, Upload, Search, X } from 'lucide-react'
+import { Pencil, Upload, Search, X, Package, Hash, Layers, Factory } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { pedidosService } from '@/services/api'
@@ -148,6 +149,54 @@ export default function PedidosPage() {
 
   return (
     <div className="space-y-4">
+      {/* Stats cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">Total Pedidos</p>
+                <p className="text-xl font-bold mt-0.5">{total}</p>
+              </div>
+              <div className="p-2 rounded-lg bg-orange-50"><Package size={16} className="text-orange-600" /></div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">Nesta Página</p>
+                <p className="text-xl font-bold mt-0.5">{pedidos.length}</p>
+              </div>
+              <div className="p-2 rounded-lg bg-blue-50"><Hash size={16} className="text-blue-600" /></div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">Tipos Distintos</p>
+                <p className="text-xl font-bold mt-0.5">{new Set(pedidos.map(p => p.tipo_producao).filter(Boolean)).size}</p>
+              </div>
+              <div className="p-2 rounded-lg bg-purple-50"><Layers size={16} className="text-purple-600" /></div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">Qtd. Total (página)</p>
+                <p className="text-xl font-bold mt-0.5">{pedidos.reduce((s, p) => s + (Number(p.quantidade) || 0), 0).toLocaleString('pt-BR')}</p>
+              </div>
+              <div className="p-2 rounded-lg bg-emerald-50"><Factory size={16} className="text-emerald-600" /></div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="flex flex-wrap items-center gap-3">
         <Select value={tipoProducaoFilter} onValueChange={(v) => { setTipoProducaoFilter(v); setPage(1) }}>
           <SelectTrigger className="w-44"><SelectValue placeholder="Tipo Produção" /></SelectTrigger>

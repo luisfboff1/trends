@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { GetServerSideProps } from 'next'
 import { getSession } from 'next-auth/react'
-import { Search, X } from 'lucide-react'
+import { Search, X, ShoppingCart, DollarSign, TrendingUp, Hash } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { pedidosService } from '@/services/api'
 import { useToast } from '@/hooks/use-toast'
@@ -66,6 +67,58 @@ export default function VendasPage() {
 
   return (
     <div className="space-y-4">
+      {/* Stats cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">Total Vendas</p>
+                <p className="text-xl font-bold mt-0.5">{total}</p>
+              </div>
+              <div className="p-2 rounded-lg bg-blue-50"><ShoppingCart size={16} className="text-blue-600" /></div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">Valor Total</p>
+                <p className="text-xl font-bold mt-0.5">{formatCurrency(vendas.reduce((s, v) => s + (Number(v.valor_total) || 0), 0))}</p>
+              </div>
+              <div className="p-2 rounded-lg bg-emerald-50"><DollarSign size={16} className="text-emerald-600" /></div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">Ticket Médio</p>
+                <p className="text-xl font-bold mt-0.5">
+                  {vendas.length > 0
+                    ? formatCurrency(vendas.reduce((s, v) => s + (Number(v.valor_total) || 0), 0) / vendas.length)
+                    : 'R$ 0'}
+                </p>
+              </div>
+              <div className="p-2 rounded-lg bg-purple-50"><TrendingUp size={16} className="text-purple-600" /></div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">Nesta Página</p>
+                <p className="text-xl font-bold mt-0.5">{vendas.length}</p>
+              </div>
+              <div className="p-2 rounded-lg bg-orange-50"><Hash size={16} className="text-orange-600" /></div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="flex flex-wrap items-center gap-3">
         <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1) }}>
           <SelectTrigger className="w-40"><SelectValue placeholder="Status" /></SelectTrigger>

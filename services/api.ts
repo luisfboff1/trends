@@ -120,6 +120,7 @@ export const pedidosService = {
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export const dashboardService = {
   get: () => api.get('/dashboard'),
+  charts: () => api.get('/dashboard-charts'),
 }
 
 // ── Usuários ──────────────────────────────────────────────────────────────────
