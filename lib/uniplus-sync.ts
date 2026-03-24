@@ -432,6 +432,9 @@ export async function syncVendas(
             UPDATE pedidos SET
               valor_total = ${valorTotal},
               status = ${status},
+              cliente_id = ${clienteId},
+              cliente_nome = ${v.nomeCliente || null},
+              origem = 'uniplus',
               uniplus_updated_at = NOW(),
               updated_at = NOW()
             WHERE id = ${existing.id}
@@ -439,9 +442,10 @@ export async function syncVendas(
           result.registros_atualizados++
         } else {
           const numero = `UP-${documento || codigo}`
+          const emissao = v.emissao || null
           await db`
-            INSERT INTO pedidos (numero, cliente_id, vendedor_id, status, valor_total, uniplus_id, uniplus_updated_at)
-            VALUES (${numero}, ${clienteId}, ${vendedorId}, ${status}, ${valorTotal}, ${codigo}, NOW())
+            INSERT INTO pedidos (numero, cliente_id, cliente_nome, vendedor_id, status, valor_total, data_entrega, origem, uniplus_id, uniplus_updated_at)
+            VALUES (${numero}, ${clienteId}, ${v.nomeCliente || null}, ${vendedorId}, ${status}, ${valorTotal}, ${emissao}, 'uniplus', ${codigo}, NOW())
           `
           result.registros_criados++
         }

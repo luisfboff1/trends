@@ -12,6 +12,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     const offset = (page - 1) * limit
     const status = req.query.status as string | undefined
     const origem = req.query.origem as string | undefined
+    const exclude_origem = req.query.exclude_origem as string | undefined
     const tipo_producao = req.query.tipo_producao as string | undefined
     const material = req.query.material as string | undefined
     const cliente = req.query.cliente as string | undefined
@@ -20,9 +21,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     const [{ count }] = await sql`
       SELECT COUNT(*) FROM pedidos p
+      LEFT JOIN clientes c ON p.cliente_id = c.id
       WHERE ${isAdmin ? sql`true` : sql`p.vendedor_id = ${user.id}`}
       ${status ? sql`AND p.status = ${status}` : sql``}
       ${origem ? sql`AND p.origem = ${origem}` : sql``}
+      ${exclude_origem ? sql`AND (p.origem IS NULL OR p.origem != ${exclude_origem})` : sql``}
       ${tipo_producao ? sql`AND p.tipo_producao = ${tipo_producao}` : sql``}
       ${material ? sql`AND p.material ILIKE ${'%' + material + '%'}` : sql``}
       ${cliente ? sql`AND (p.cliente_nome ILIKE ${'%' + cliente + '%'} OR c.razao_social ILIKE ${'%' + cliente + '%'})` : sql``}
@@ -36,6 +39,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       WHERE ${isAdmin ? sql`true` : sql`p.vendedor_id = ${user.id}`}
       ${status ? sql`AND p.status = ${status}` : sql``}
       ${origem ? sql`AND p.origem = ${origem}` : sql``}
+      ${exclude_origem ? sql`AND (p.origem IS NULL OR p.origem != ${exclude_origem})` : sql``}
       ${tipo_producao ? sql`AND p.tipo_producao = ${tipo_producao}` : sql``}
       ${material ? sql`AND p.material ILIKE ${'%' + material + '%'}` : sql``}
       ${cliente ? sql`AND (p.cliente_nome ILIKE ${'%' + cliente + '%'} OR c.razao_social ILIKE ${'%' + cliente + '%'})` : sql``}

@@ -1,15 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { GetServerSideProps } from 'next'
 import { getSession } from 'next-auth/react'
-import { useRouter } from 'next/router'
-import { Eye, Pencil, Upload, Search, X } from 'lucide-react'
+import { Pencil, Upload, Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { pedidosService } from '@/services/api'
 import { useToast } from '@/hooks/use-toast'
-import { formatCurrency, formatLocalDate } from '@/lib/utils'
 import type { Pedido } from '@/types'
 
 const STATUS_OPTIONS = [
@@ -35,7 +33,6 @@ const TIPO_PRODUCAO_OPTIONS = [
 ]
 
 export default function PedidosPage() {
-  const router = useRouter()
   const { toast } = useToast()
   const [pedidos, setPedidos] = useState<Pedido[]>([])
   const [total, setTotal] = useState(0)
@@ -51,7 +48,7 @@ export default function PedidosPage() {
   const [importModal, setImportModal] = useState(false)
   const [importing, setImporting] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
-  const searchTimeout = useRef<NodeJS.Timeout>()
+  const searchTimeout = useRef<NodeJS.Timeout>(undefined)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -61,6 +58,7 @@ export default function PedidosPage() {
         status: statusFilter === 'all' ? undefined : statusFilter,
         tipo_producao: tipoProducaoFilter === 'all' ? undefined : tipoProducaoFilter,
         cliente: clienteQuery || undefined,
+        exclude_origem: 'uniplus',
       })
       setPedidos(data.data.data)
       setTotal(data.data.total)
@@ -169,16 +167,16 @@ export default function PedidosPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-[var(--border)] bg-[var(--muted)]/30">
-              <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)]">Número</th>
+              <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)]">OF</th>
               <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)]">Cliente</th>
-              <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)]">Status</th>
+              <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)]">Tipo</th>
               <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)] hidden md:table-cell">Material</th>
+              <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)] hidden md:table-cell">Faca</th>
               <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)] hidden lg:table-cell">Etiqueta</th>
               <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)] hidden lg:table-cell">Qtd</th>
-              <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)] hidden xl:table-cell">Tipo</th>
-              <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)] hidden md:table-cell">Valor</th>
-              <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)] hidden lg:table-cell">Data Entrega</th>
-              <th className="w-20" />
+              <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)] hidden xl:table-cell">Produzido</th>
+              <th className="text-left px-4 py-3 font-medium text-[var(--muted-foreground)] hidden xl:table-cell">Mês Ref.</th>
+              <th className="w-16" />
             </tr>
           </thead>
           <tbody>
@@ -187,39 +185,24 @@ export default function PedidosPage() {
             {!loading && pedidos.map((p) => (
               <tr key={p.id} className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--muted)]/30 transition-colors">
                 <td className="px-4 py-3 font-mono text-xs font-medium">
-                  {p.ordem_fabricacao ? `OF-${p.ordem_fabricacao}` : p.numero}
+                  {p.ordem_fabricacao || '—'}
                 </td>
-                <td className="px-4 py-3">{p.cliente_nome ?? p.cliente_razao_social ?? '—'}</td>
+                <td className="px-4 py-3 text-sm">{p.cliente_nome ?? '—'}</td>
                 <td className="px-4 py-3">
-                  <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold ${STATUS_BADGE[p.status]}`}>
-                    {p.status}
-                  </span>
+                  {p.tipo_producao ? (
+                    <span className="inline-flex items-center rounded-md bg-[var(--muted)] px-2 py-0.5 text-xs">{p.tipo_producao}</span>
+                  ) : '—'}
                 </td>
                 <td className="px-4 py-3 hidden md:table-cell text-xs">{p.material ?? '—'}</td>
+                <td className="px-4 py-3 hidden md:table-cell text-xs font-mono">{p.codigo_faca ?? '—'}</td>
                 <td className="px-4 py-3 hidden lg:table-cell text-xs font-mono">{p.etiqueta_dimensao ?? '—'}</td>
                 <td className="px-4 py-3 hidden lg:table-cell text-xs">{p.quantidade != null ? Number(p.quantidade).toLocaleString('pt-BR') : '—'}</td>
-                <td className="px-4 py-3 hidden xl:table-cell">
-                  {p.tipo_producao && (
-                    <span className="inline-flex items-center rounded-md bg-[var(--muted)] px-2 py-0.5 text-xs">{p.tipo_producao}</span>
-                  )}
-                </td>
-                <td className="px-4 py-3 hidden md:table-cell">
-                  {p.valor_total ? formatCurrency(Number(p.valor_total)) : '—'}
-                </td>
-                <td className="px-4 py-3 text-[var(--muted-foreground)] text-xs hidden lg:table-cell">
-                  {p.data_entrega ? formatLocalDate(p.data_entrega) : '—'}
-                </td>
+                <td className="px-4 py-3 hidden xl:table-cell text-xs">{p.produzido_por ?? '—'}</td>
+                <td className="px-4 py-3 hidden xl:table-cell text-xs text-[var(--muted-foreground)]">{p.mes_referencia ?? '—'}</td>
                 <td className="px-4 py-3">
-                  <div className="flex gap-1 justify-end">
-                    {p.orcamento_id && (
-                      <Button variant="ghost" size="icon" onClick={() => router.push(`/orcamentos/${p.orcamento_id}`)}>
-                        <Eye size={14} />
-                      </Button>
-                    )}
-                    <Button variant="ghost" size="icon" onClick={() => { setEditModal({ open: true, pedido: p }); setNewStatus(p.status) }}>
-                      <Pencil size={14} />
-                    </Button>
-                  </div>
+                  <Button variant="ghost" size="icon" onClick={() => { setEditModal({ open: true, pedido: p }); setNewStatus(p.status) }}>
+                    <Pencil size={14} />
+                  </Button>
                 </td>
               </tr>
             ))}

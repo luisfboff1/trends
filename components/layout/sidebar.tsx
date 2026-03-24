@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, Users, FileText, ShoppingCart,
   Layers, ChevronLeft, LogOut, Tag, X,
-  Package, CreditCard, BarChart3, RefreshCw
+  Package, CreditCard, BarChart3, RefreshCw, DollarSign
 } from 'lucide-react'
 import { useSession, signOut } from 'next-auth/react'
 import { useSidebarStore } from '@/store/sidebar'
@@ -16,6 +16,7 @@ const navItems = [
   { href: '/clientes', label: 'Clientes', icon: Users },
   { href: '/orcamentos', label: 'Orçamentos', icon: FileText },
   { href: '/pedidos', label: 'Pedidos', icon: ShoppingCart },
+  { href: '/vendas', label: 'Vendas', icon: DollarSign },
   { href: '/materiais', label: 'Materiais', icon: Package, adminOnly: true },
   { href: '/tabelas-margem', label: 'Tabelas de Margem', icon: BarChart3, adminOnly: true },
   { href: '/condicoes-pagamento', label: 'Cond. Pagamento', icon: CreditCard, adminOnly: true },
