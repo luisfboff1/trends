@@ -148,7 +148,8 @@ export default function CondicoesPagamentoPage() {
 }
 
 export const getServerSideProps: GetServerSideProps = async (ctx) => {
-  const session = await getSession(ctx)
-  if (!session) return { redirect: { destination: '/login', permanent: false } }
+  const { requireFeature } = await import('@/lib/require-feature')
+  const guard = await requireFeature(ctx, 'condicoes_pagamento')
+  if (guard) return guard
   return { props: {} }
 }

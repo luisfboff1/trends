@@ -8,12 +8,12 @@ export interface AuthenticatedRequest extends NextApiRequest {
     name: string
     email: string
     tipo: string
+    permissoes: Record<string, boolean>
   }
 }
 
 /**
  * HOF that protects API routes — requires valid NextAuth session
- * Adapts MeguisPet's withSupabaseAuth pattern for NextAuth + Neon
  */
 export function withAuth(
   handler: (req: AuthenticatedRequest, res: NextApiResponse) => Promise<void> | void
@@ -30,15 +30,25 @@ export function withAuth(
 }
 
 /**
- * HOF that requires specific user type (admin)
+ * HOF that requires specific roles
+ */
+export function withRole(
+  roles: string[],
+  handler: (req: AuthenticatedRequest, res: NextApiResponse) => Promise<void> | void
+) {
+  return withAuth(async (req, res) => {
+    if (!roles.includes(req.user.tipo)) {
+      return res.status(403).json({ success: false, error: 'Acesso negado. Permissão insuficiente.' })
+    }
+    return handler(req, res)
+  })
+}
+
+/**
+ * HOF that requires admin role
  */
 export function withAdmin(
   handler: (req: AuthenticatedRequest, res: NextApiResponse) => Promise<void> | void
 ) {
-  return withAuth(async (req, res) => {
-    if (req.user.tipo !== 'admin') {
-      return res.status(403).json({ success: false, error: 'Acesso negado. Apenas administradores.' })
-    }
-    return handler(req, res)
-  })
+  return withRole(['admin'], handler)
 }

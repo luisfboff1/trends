@@ -17,14 +17,41 @@ export interface PaginatedResponse<T> {
 
 // ─── Usuarios ───────────────────────────────────────────────────────────────
 
+export type UserTipo = 'admin' | 'operador' | 'vendedor'
+
+export type UsuarioPermissoes = Record<string, boolean>
+
+export const ALL_FEATURES = [
+  'dashboard', 'clientes', 'orcamentos', 'pedidos', 'vendas',
+  'materiais', 'tabelas_margem', 'condicoes_pagamento', 'usuarios', 'uniplus',
+] as const
+
+export type Feature = typeof ALL_FEATURES[number]
+
+export const DEFAULT_PERMISSIONS: Record<UserTipo, Record<Feature, boolean>> = {
+  admin: {
+    dashboard: true, clientes: true, orcamentos: true, pedidos: true, vendas: true,
+    materiais: true, tabelas_margem: true, condicoes_pagamento: true, usuarios: true, uniplus: true,
+  },
+  operador: {
+    dashboard: true, clientes: false, orcamentos: false, pedidos: true, vendas: false,
+    materiais: true, tabelas_margem: false, condicoes_pagamento: false, usuarios: false, uniplus: false,
+  },
+  vendedor: {
+    dashboard: true, clientes: true, orcamentos: true, pedidos: true, vendas: true,
+    materiais: false, tabelas_margem: false, condicoes_pagamento: false, usuarios: false, uniplus: false,
+  },
+}
+
 export interface Usuario {
   id: number
   nome: string
   email: string
-  tipo: 'admin' | 'vendedor'
+  tipo: UserTipo
   ativo: boolean
   tabela_margem_id?: number
   tabela_margem_nome?: string // JOIN
+  permissoes?: UsuarioPermissoes
   created_at: string
   updated_at: string
 }
@@ -33,7 +60,7 @@ export interface UsuarioForm {
   nome: string
   email: string
   senha: string
-  tipo: 'admin' | 'vendedor'
+  tipo: UserTipo
 }
 
 // ─── Clientes ───────────────────────────────────────────────────────────────
@@ -434,6 +461,7 @@ declare module 'next-auth' {
   interface User {
     id: string
     tipo: string
+    permissoes?: Record<string, boolean>
   }
   interface Session {
     user: {
@@ -441,6 +469,7 @@ declare module 'next-auth' {
       name: string
       email: string
       tipo: string
+      permissoes: Record<string, boolean>
     }
   }
 }
@@ -449,5 +478,6 @@ declare module 'next-auth/jwt' {
   interface JWT {
     id: string
     tipo: string
+    permissoes?: Record<string, boolean>
   }
 }

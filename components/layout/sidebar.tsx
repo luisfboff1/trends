@@ -9,28 +9,29 @@ import {
 } from 'lucide-react'
 import { useSession, signOut } from 'next-auth/react'
 import { useSidebarStore } from '@/store/sidebar'
+import { usePermissions } from '@/hooks/use-permissions'
 import { cn } from '@/lib/utils'
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/clientes', label: 'Clientes', icon: Users },
-  { href: '/orcamentos', label: 'Orçamentos', icon: FileText },
-  { href: '/pedidos', label: 'Pedidos', icon: ShoppingCart },
-  { href: '/vendas', label: 'Vendas', icon: DollarSign },
-  { href: '/materiais', label: 'Materiais', icon: Package, adminOnly: true },
-  { href: '/tabelas-margem', label: 'Tabelas de Margem', icon: BarChart3, adminOnly: true },
-  { href: '/condicoes-pagamento', label: 'Cond. Pagamento', icon: CreditCard, adminOnly: true },
-  { href: '/usuarios', label: 'Usuários', icon: Tag, adminOnly: true },
-  { href: '/uniplus', label: 'UniPlus', icon: RefreshCw, adminOnly: true },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, feature: 'dashboard' },
+  { href: '/clientes', label: 'Clientes', icon: Users, feature: 'clientes' },
+  { href: '/orcamentos', label: 'Orçamentos', icon: FileText, feature: 'orcamentos' },
+  { href: '/pedidos', label: 'Pedidos', icon: ShoppingCart, feature: 'pedidos' },
+  { href: '/vendas', label: 'Vendas', icon: DollarSign, feature: 'vendas' },
+  { href: '/materiais', label: 'Materiais', icon: Package, feature: 'materiais' },
+  { href: '/tabelas-margem', label: 'Tabelas de Margem', icon: BarChart3, feature: 'tabelas_margem' },
+  { href: '/condicoes-pagamento', label: 'Cond. Pagamento', icon: CreditCard, feature: 'condicoes_pagamento' },
+  { href: '/usuarios', label: 'Usuários', icon: Tag, feature: 'usuarios' },
+  { href: '/uniplus', label: 'UniPlus', icon: RefreshCw, feature: 'uniplus' },
 ]
 
 export function Sidebar() {
   const router = useRouter()
   const { data: session } = useSession()
   const { isCollapsed, toggleCollapsed, closeOnNavigate, setCollapsed } = useSidebarStore()
-  const isAdmin = (session?.user as any)?.tipo === 'admin'
+  const { can, tipo } = usePermissions()
 
-  const visibleItems = navItems.filter((item) => !item.adminOnly || isAdmin)
+  const visibleItems = navItems.filter((item) => can(item.feature))
 
   // On mobile, start collapsed
   useEffect(() => {
@@ -117,7 +118,7 @@ export function Sidebar() {
               <div className="px-2 py-1.5 mb-1">
                 <p className="text-xs text-[var(--sidebar-text)] opacity-60 truncate">{session.user.email}</p>
                 <p className="text-xs text-[var(--sidebar-text)] opacity-40 capitalize">
-                  {(session.user as any)?.tipo ?? 'vendedor'}
+                  {tipo}
                 </p>
               </div>
             )}

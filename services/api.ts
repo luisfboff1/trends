@@ -121,7 +121,7 @@ export const pedidosService = {
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export const dashboardService = {
   get: () => api.get('/dashboard'),
-  charts: () => api.get('/dashboard-charts'),
+  charts: (view?: string) => api.get('/dashboard-charts', { params: view ? { view } : {} }),
 }
 
 // ── Usuários ──────────────────────────────────────────────────────────────────
@@ -133,6 +133,8 @@ export const usuariosService = {
   approve: (id: number) => api.patch(`/usuarios/${id}`, { ativo: true }),
   reject: (id: number) => api.patch(`/usuarios/${id}`, { ativo: false }),
   updateTipo: (id: number, tipo: string) => api.patch(`/usuarios/${id}`, { tipo }),
+  updatePermissions: (id: number, permissoes: Record<string, boolean>) =>
+    api.patch(`/usuarios/${id}`, { permissoes }),
   updateTabelaMargem: (id: number, tabela_margem_id: number) =>
     api.patch(`/usuarios/${id}`, { tabela_margem_id }),
   delete: (id: number) => api.delete(`/usuarios/${id}`),

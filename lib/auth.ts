@@ -3,6 +3,34 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 import GoogleProvider from 'next-auth/providers/google'
 import bcrypt from 'bcryptjs'
 import sql from './db'
+import { DEFAULT_PERMISSIONS, ALL_FEATURES } from '@/types'
+import type { UserTipo } from '@/types'
+
+/** Insert default permissions for a user based on their role */
+async function insertDefaultPermissions(userId: number, tipo: UserTipo) {
+  const defaults = DEFAULT_PERMISSIONS[tipo] ?? DEFAULT_PERMISSIONS.vendedor
+  for (const feature of ALL_FEATURES) {
+    await sql`
+      INSERT INTO usuario_permissoes (usuario_id, feature, habilitado)
+      VALUES (${userId}, ${feature}, ${defaults[feature] ?? false})
+      ON CONFLICT (usuario_id, feature) DO NOTHING
+    `
+  }
+}
+
+/** Load permissions from DB for a user */
+async function loadPermissions(userId: number, tipo: UserTipo): Promise<Record<string, boolean>> {
+  const rows = await sql`
+    SELECT feature, habilitado FROM usuario_permissoes WHERE usuario_id = ${userId}
+  `
+  if (rows.length === 0) {
+    // No permissions yet — return defaults (will be seeded on next login via insertDefaultPermissions)
+    return { ...(DEFAULT_PERMISSIONS[tipo] ?? DEFAULT_PERMISSIONS.vendedor) }
+  }
+  const perms: Record<string, boolean> = {}
+  for (const r of rows) perms[r.feature] = r.habilitado
+  return perms
+}
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -32,7 +60,8 @@ export const authOptions: NextAuthOptions = {
           if (!user.ativo) return null  // admin não aprovou ainda
           const valid = bcrypt.compareSync(credentials.password, user.senha_hash)
           if (!valid) return null
-          return { id: String(user.id), name: user.nome, email: user.email, tipo: user.tipo, ativo: true }
+          const permissoes = await loadPermissions(user.id, user.tipo as UserTipo)
+          return { id: String(user.id), name: user.nome, email: user.email, tipo: user.tipo, ativo: true, permissoes }
         } catch (error) {
           console.error('[Auth] Error:', error)
           return null
@@ -55,10 +84,13 @@ export const authOptions: NextAuthOptions = {
 
         if (!existing) {
           // Novo usuário via Google → criar conta pendente (ativo = false)
-          await sql`
+          const [newUser] = await sql`
             INSERT INTO usuarios (nome, email, google_id, avatar_url, tipo, ativo)
             VALUES (${user.name ?? email}, ${email}, ${user.id}, ${user.image ?? null}, 'vendedor', false)
+            RETURNING id
           `
+          // Insert default vendedor permissions
+          await insertDefaultPermissions(newUser.id, 'vendedor')
           // Redireciona para tela de aguardando aprovação
           return '/aguardando-aprovacao?novo=1'
         }
@@ -73,11 +105,14 @@ export const authOptions: NextAuthOptions = {
           UPDATE usuarios SET google_id = ${user.id}, avatar_url = ${user.image ?? null}, updated_at = NOW()
           WHERE email = ${email}
         `
+        // Load permissions
+        const permissoes = await loadPermissions(existing.id, existing.tipo as UserTipo)
         // Injeta dados extras no objeto user para os callbacks abaixo
         user.id = String(existing.id)
         ;(user as any).tipo = existing.tipo
         ;(user as any).ativo = true
         ;(user as any).nome = existing.nome
+        ;(user as any).permissoes = permissoes
       }
 
       return true
@@ -89,6 +124,7 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id
         token.tipo = (user as any).tipo ?? 'vendedor'
         token.ativo = (user as any).ativo ?? true
+        token.permissoes = (user as any).permissoes ?? {}
       }
       return token
     },
@@ -99,6 +135,7 @@ export const authOptions: NextAuthOptions = {
         ;(session.user as any).id = token.id as string
         ;(session.user as any).tipo = token.tipo as string
         ;(session.user as any).ativo = token.ativo
+        ;(session.user as any).permissoes = token.permissoes ?? {}
       }
       return session
     },

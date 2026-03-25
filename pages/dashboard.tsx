@@ -3,10 +3,12 @@ import { GetServerSideProps } from 'next'
 import { getSession } from 'next-auth/react'
 import {
   FileText, ShoppingCart, Users, TrendingUp, DollarSign, Package,
-  ArrowUpRight, ArrowDownRight, BarChart3,
+  ArrowUpRight, ArrowDownRight, BarChart3, Eye,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { dashboardService } from '@/services/api'
+import { usePermissions } from '@/hooks/use-permissions'
 import { formatCurrency } from '@/lib/utils'
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
@@ -15,6 +17,7 @@ import {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface ChartData {
+  view?: string
   monthlyPedidos: { mes: string; total: number; quantidade: number }[]
   monthlyVendas: { mes: string; total: number; valor: number }[]
   tipoProducao: { tipo: string; total: number }[]
@@ -101,13 +104,16 @@ export default function DashboardPage() {
   const [data, setData] = useState<ChartData | null>(null)
   const [loading, setLoading] = useState(true)
   const [donutActive, setDonutActive] = useState<number | undefined>(undefined)
+  const { tipo, isAdmin } = usePermissions()
+  const [view, setView] = useState<string>(tipo)
 
   useEffect(() => {
-    dashboardService.charts()
+    setLoading(true)
+    dashboardService.charts(isAdmin ? view : undefined)
       .then((r) => setData(r.data.data))
       .catch(console.error)
       .finally(() => setLoading(false))
-  }, [])
+  }, [view, isAdmin])
 
   const onDonutEnter = useCallback((_: unknown, i: number) => setDonutActive(i), [])
   const onDonutLeave = useCallback(() => setDonutActive(undefined), [])
@@ -144,34 +150,69 @@ export default function DashboardPage() {
     }
   })
 
+  const isOperadorView = (data?.view ?? view) === 'operador'
+  const isVendedorView = (data?.view ?? view) === 'vendedor'
+  const showFinancials = !isOperadorView
+
   return (
     <div className="space-y-6">
+      {/* ── Admin View Selector ────────────────────────────────────────── */}
+      {isAdmin && (
+        <div className="flex items-center gap-3">
+          <Eye size={16} className="text-[var(--muted-foreground)]" />
+          <span className="text-sm text-[var(--muted-foreground)]">Visão:</span>
+          <Select value={view} onValueChange={setView}>
+            <SelectTrigger className="w-40 h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="admin">Admin</SelectItem>
+              <SelectItem value="operador">Operador</SelectItem>
+              <SelectItem value="vendedor">Vendedor</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       {/* ── KPI Cards ──────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className={`grid gap-4 ${showFinancials ? 'grid-cols-2 xl:grid-cols-4' : 'grid-cols-2 lg:grid-cols-4'}`}>
+        {showFinancials && (
+          <KpiCard
+            title={isVendedorView ? 'Minhas Vendas este Mês' : 'Vendas este Mês'}
+            value={data.currentMonth.vendas}
+            pct={vendasPct}
+            icon={ShoppingCart}
+            color="text-blue-600"
+            bg="bg-blue-50"
+          />
+        )}
         <KpiCard
-          title="Vendas este Mês"
-          value={data.currentMonth.vendas}
-          pct={vendasPct}
-          icon={ShoppingCart}
-          color="text-blue-600"
-          bg="bg-blue-50"
-        />
-        <KpiCard
-          title="Pedidos este Mês"
+          title={isOperadorView ? 'Pedidos em Produção' : isVendedorView ? 'Meus Pedidos este Mês' : 'Pedidos este Mês'}
           value={data.currentMonth.pedidos}
           pct={pedidosPct}
           icon={Package}
           color="text-orange-600"
           bg="bg-orange-50"
         />
-        <KpiCard
-          title="Faturamento do Mês"
-          value={formatCurrency(data.currentMonth.valorVendas)}
-          pct={valorPct}
-          icon={DollarSign}
-          color="text-emerald-600"
-          bg="bg-emerald-50"
-        />
+        {showFinancials ? (
+          <KpiCard
+            title={isVendedorView ? 'Meu Faturamento do Mês' : 'Faturamento do Mês'}
+            value={formatCurrency(data.currentMonth.valorVendas)}
+            pct={valorPct}
+            icon={DollarSign}
+            color="text-emerald-600"
+            bg="bg-emerald-50"
+          />
+        ) : (
+          <KpiCard
+            title="Pedidos Pendentes"
+            value={data.statusPedidos?.pendente ?? 0}
+            pct={0}
+            icon={FileText}
+            color="text-yellow-600"
+            bg="bg-yellow-50"
+          />
+        )}
         <KpiCard
           title="Qtd. Produzida no Mês"
           value={Number(data.currentMonth.quantidade).toLocaleString('pt-BR')}
@@ -180,61 +221,73 @@ export default function DashboardPage() {
           color="text-purple-600"
           bg="bg-purple-50"
         />
+        {isOperadorView && (
+          <KpiCard
+            title="Pedidos Entregues"
+            value={data.statusPedidos?.entregue ?? 0}
+            pct={0}
+            icon={ShoppingCart}
+            color="text-emerald-600"
+            bg="bg-emerald-50"
+          />
+        )}
       </div>
 
       {/* ── Totais Gerais ──────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className={`grid gap-4 ${showFinancials ? 'grid-cols-2 lg:grid-cols-4' : 'grid-cols-2'}`}>
         <MiniCard title="Total de Pedidos" value={data.totals.pedidos} icon={FileText} />
-        <MiniCard title="Total de Clientes" value={data.totals.clientes} icon={Users} />
-        <MiniCard title="Total de Orçamentos" value={data.totals.orcamentos} icon={FileText} />
-        <MiniCard title="Faturamento Total" value={formatCurrency(data.totals.valorTotal)} icon={TrendingUp} highlight />
+        {showFinancials && <MiniCard title="Total de Clientes" value={data.totals.clientes} icon={Users} />}
+        {showFinancials && <MiniCard title="Total de Orçamentos" value={data.totals.orcamentos} icon={FileText} />}
+        {showFinancials && <MiniCard title={isVendedorView ? 'Meu Faturamento Total' : 'Faturamento Total'} value={formatCurrency(data.totals.valorTotal)} icon={TrendingUp} highlight />}
       </div>
 
-      {/* ── Evolução Mensal (Area) ─────────────────────────────────────── */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-semibold">Evolução de Vendas Mensal</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={monthlyMerged} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="grad-vendas" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.25} />
-                  <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.02} />
-                </linearGradient>
-                <linearGradient id="grad-valor" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#10b981" stopOpacity={0.25} />
-                  <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid stroke={GRID_STROKE} vertical={false} />
-              <XAxis dataKey="mes" tick={AXIS_TICK} axisLine={false} tickLine={false} />
-              <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} width={40}
-                yAxisId="left" tickFormatter={(v: number) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v)} />
-              <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} width={50}
-                yAxisId="right" orientation="right"
-                tickFormatter={(v: number) => v >= 1000 ? `R$${(v/1000).toFixed(0)}k` : `R$${v}`} />
-              <Tooltip
-                contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM} labelStyle={TOOLTIP_LABEL}
-                formatter={(v: number, name: string) => [
-                  name === 'valorVendas' ? formatCurrency(v) : v,
-                  name === 'vendas' ? 'Vendas' : name === 'valorVendas' ? 'Faturamento' : name,
-                ]}
-              />
-              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-              <Area yAxisId="left" type="monotone" dataKey="vendas" name="Vendas"
-                stroke="#3b82f6" strokeWidth={2.5} fill="url(#grad-vendas)"
-                activeDot={{ r: 5, fill: '#3b82f6', stroke: '#fff', strokeWidth: 2 }}
-                animationDuration={1200} animationEasing="ease-out" />
-              <Area yAxisId="right" type="monotone" dataKey="valorVendas" name="Faturamento"
-                stroke="#10b981" strokeWidth={2} fill="url(#grad-valor)" strokeDasharray="5 3"
-                activeDot={{ r: 5, fill: '#10b981', stroke: '#fff', strokeWidth: 2 }}
-                animationDuration={1200} animationEasing="ease-out" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
+      {/* ── Evolução Mensal (Area) — only for views with financial data ──── */}
+      {showFinancials && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-semibold">{isVendedorView ? 'Evolução das Minhas Vendas' : 'Evolução de Vendas Mensal'}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={280}>
+              <AreaChart data={monthlyMerged} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="grad-vendas" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.25} />
+                    <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.02} />
+                  </linearGradient>
+                  <linearGradient id="grad-valor" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#10b981" stopOpacity={0.25} />
+                    <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke={GRID_STROKE} vertical={false} />
+                <XAxis dataKey="mes" tick={AXIS_TICK} axisLine={false} tickLine={false} />
+                <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} width={40}
+                  yAxisId="left" tickFormatter={(v: number) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v)} />
+                <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} width={50}
+                  yAxisId="right" orientation="right"
+                  tickFormatter={(v: number) => v >= 1000 ? `R$${(v/1000).toFixed(0)}k` : `R$${v}`} />
+                <Tooltip
+                  contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM} labelStyle={TOOLTIP_LABEL}
+                  formatter={(v: number, name: string) => [
+                    name === 'valorVendas' ? formatCurrency(v) : v,
+                    name === 'vendas' ? 'Vendas' : name === 'valorVendas' ? 'Faturamento' : name,
+                  ]}
+                />
+                <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+                <Area yAxisId="left" type="monotone" dataKey="vendas" name="Vendas"
+                  stroke="#3b82f6" strokeWidth={2.5} fill="url(#grad-vendas)"
+                  activeDot={{ r: 5, fill: '#3b82f6', stroke: '#fff', strokeWidth: 2 }}
+                  animationDuration={1200} animationEasing="ease-out" />
+                <Area yAxisId="right" type="monotone" dataKey="valorVendas" name="Faturamento"
+                  stroke="#10b981" strokeWidth={2} fill="url(#grad-valor)" strokeDasharray="5 3"
+                  activeDot={{ r: 5, fill: '#10b981', stroke: '#fff', strokeWidth: 2 }}
+                  animationDuration={1200} animationEasing="ease-out" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── Pedidos por Mês (Bar) + Donut Tipos ────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
@@ -345,7 +398,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Status + Top Clientes ──────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className={`grid grid-cols-1 gap-4 ${showFinancials ? 'lg:grid-cols-3' : 'lg:grid-cols-2'}`}>
         <Card>
           <CardHeader><CardTitle className="text-sm font-semibold">Status Pedidos</CardTitle></CardHeader>
           <CardContent className="space-y-3">
@@ -368,48 +421,52 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader><CardTitle className="text-sm font-semibold">Status Vendas</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            {Object.entries(data.statusVendas).map(([status, count]) => {
-              const total = Object.values(data.statusVendas).reduce((s, v) => s + v, 0)
-              const pct = total > 0 ? Math.round((count / total) * 100) : 0
-              return (
-                <div key={status}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium">{STATUS_LABEL[status] ?? status}</span>
-                    <span className="text-xs text-[var(--muted-foreground)]">{count} ({pct}%)</span>
+        {showFinancials && (
+          <Card>
+            <CardHeader><CardTitle className="text-sm font-semibold">Status Vendas</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              {Object.entries(data.statusVendas).map(([status, count]) => {
+                const total = Object.values(data.statusVendas).reduce((s, v) => s + v, 0)
+                const pct = total > 0 ? Math.round((count / total) * 100) : 0
+                return (
+                  <div key={status}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-medium">{STATUS_LABEL[status] ?? status}</span>
+                      <span className="text-xs text-[var(--muted-foreground)]">{count} ({pct}%)</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-[var(--muted)] overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-700"
+                        style={{ width: `${pct}%`, background: STATUS_COLOR[status] ?? '#9ca3af' }} />
+                    </div>
                   </div>
-                  <div className="h-2 rounded-full bg-[var(--muted)] overflow-hidden">
-                    <div className="h-full rounded-full transition-all duration-700"
-                      style={{ width: `${pct}%`, background: STATUS_COLOR[status] ?? '#9ca3af' }} />
-                  </div>
-                </div>
-              )
-            })}
-          </CardContent>
-        </Card>
+                )
+              })}
+            </CardContent>
+          </Card>
+        )}
 
-        <Card>
-          <CardHeader><CardTitle className="text-sm font-semibold">Top Clientes</CardTitle></CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {data.topClientes.slice(0, 8).map((c, i) => (
-                <div key={c.nome} className="flex items-center gap-3">
-                  <span className="flex items-center justify-center w-6 h-6 rounded-full bg-[var(--muted)] text-[10px] font-bold text-[var(--muted-foreground)] shrink-0">
-                    {i + 1}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium truncate">{c.nome}</p>
-                    <p className="text-[10px] text-[var(--muted-foreground)]">
-                      {c.total} pedidos · {formatCurrency(c.valor)}
-                    </p>
+        {showFinancials && (
+          <Card>
+            <CardHeader><CardTitle className="text-sm font-semibold">{isVendedorView ? 'Meus Top Clientes' : 'Top Clientes'}</CardTitle></CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {data.topClientes.slice(0, 8).map((c, i) => (
+                  <div key={c.nome} className="flex items-center gap-3">
+                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-[var(--muted)] text-[10px] font-bold text-[var(--muted-foreground)] shrink-0">
+                      {i + 1}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium truncate">{c.nome}</p>
+                      <p className="text-[10px] text-[var(--muted-foreground)]">
+                        {c.total} pedidos · {formatCurrency(c.valor)}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   )
@@ -466,7 +523,8 @@ function MiniCard({ title, value, icon: Icon, highlight }: {
 }
 
 export const getServerSideProps: GetServerSideProps = async (ctx) => {
-  const session = await getSession(ctx)
-  if (!session) return { redirect: { destination: '/login', permanent: false } }
+  const { requireFeature } = await import('@/lib/require-feature')
+  const guard = await requireFeature(ctx, 'dashboard')
+  if (guard) return guard
   return { props: {} }
 }

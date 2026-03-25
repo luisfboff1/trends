@@ -7,7 +7,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
   const user = (req as any).user
   const isAdmin = user.tipo === 'admin'
-  const vendedorFilter = isAdmin ? sql`` : sql`AND vendedor_id = ${user.id}`
+
+  // Determine the dashboard view
+  const requestedView = req.query.view as string | undefined
+  const view = isAdmin && requestedView ? requestedView : user.tipo
+
+  // Filter by vendedor unless admin or operador (operador sees all pedidos)
+  const filterByVendedor = view === 'vendedor' && !isAdmin
+  const vendedorFilter = filterByVendedor ? sql`AND vendedor_id = ${user.id}` : sql``
 
   const [
     monthlyPedidos,
@@ -113,39 +120,43 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       SELECT
         COUNT(*) as total_pedidos,
         COALESCE(SUM(valor_total), 0) as valor_total,
-        (SELECT COUNT(*) FROM clientes WHERE ativo = true ${isAdmin ? sql`` : sql`AND vendedor_id = ${user.id}`}) as total_clientes,
+        (SELECT COUNT(*) FROM clientes WHERE ativo = true ${filterByVendedor ? sql`AND vendedor_id = ${user.id}` : sql``}) as total_clientes,
         (SELECT COUNT(*) FROM orcamentos WHERE true ${vendedorFilter}) as total_orcamentos
       FROM pedidos
       WHERE true ${vendedorFilter}
     `,
   ])
 
+  // For operador view: strip financial data (faturamento, vendas, clientes)
+  const isOperadorView = view === 'operador'
+
   return res.json({
     success: true,
     data: {
+      view,
       monthlyPedidos: monthlyPedidos.map(r => ({ mes: r.mes, total: Number(r.total), quantidade: Number(r.quantidade) })),
-      monthlyVendas: monthlyVendas.map(r => ({ mes: r.mes, total: Number(r.total), valor: Number(r.valor) })),
+      monthlyVendas: isOperadorView ? [] : monthlyVendas.map(r => ({ mes: r.mes, total: Number(r.total), valor: Number(r.valor) })),
       tipoProducao: tipoProducao.map(r => ({ tipo: r.tipo, total: Number(r.total) })),
       statusPedidos: Object.fromEntries(statusPedidos.map(r => [r.status, Number(r.total)])),
-      statusVendas: Object.fromEntries(statusVendas.map(r => [r.status, Number(r.total)])),
-      topClientes: topClientes.map(r => ({ nome: r.nome, total: Number(r.total), valor: Number(r.valor) })),
+      statusVendas: isOperadorView ? {} : Object.fromEntries(statusVendas.map(r => [r.status, Number(r.total)])),
+      topClientes: isOperadorView ? [] : topClientes.map(r => ({ nome: r.nome, total: Number(r.total), valor: Number(r.valor) })),
       currentMonth: {
         pedidos: Number(currentMonthStats[0].pedidos_mes),
-        vendas: Number(currentMonthStats[0].vendas_mes),
-        valorVendas: Number(currentMonthStats[0].valor_vendas_mes),
+        vendas: isOperadorView ? 0 : Number(currentMonthStats[0].vendas_mes),
+        valorVendas: isOperadorView ? 0 : Number(currentMonthStats[0].valor_vendas_mes),
         quantidade: Number(currentMonthStats[0].quantidade_mes),
       },
       previousMonth: {
         pedidos: Number(previousMonthStats[0].pedidos_mes),
-        vendas: Number(previousMonthStats[0].vendas_mes),
-        valorVendas: Number(previousMonthStats[0].valor_vendas_mes),
+        vendas: isOperadorView ? 0 : Number(previousMonthStats[0].vendas_mes),
+        valorVendas: isOperadorView ? 0 : Number(previousMonthStats[0].valor_vendas_mes),
         quantidade: Number(previousMonthStats[0].quantidade_mes),
       },
       totals: {
         pedidos: Number(totals[0].total_pedidos),
-        valorTotal: Number(totals[0].valor_total),
-        clientes: Number(totals[0].total_clientes),
-        orcamentos: Number(totals[0].total_orcamentos),
+        valorTotal: isOperadorView ? 0 : Number(totals[0].valor_total),
+        clientes: isOperadorView ? 0 : Number(totals[0].total_clientes),
+        orcamentos: isOperadorView ? 0 : Number(totals[0].total_orcamentos),
       },
     },
   })

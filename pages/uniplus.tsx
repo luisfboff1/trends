@@ -619,8 +619,8 @@ export default function UniplusPage() {
 }
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
-  const session = await getSession(context)
-  if (!session) return { redirect: { destination: '/login', permanent: false } }
-  if ((session.user as any)?.tipo !== 'admin') return { redirect: { destination: '/dashboard', permanent: false } }
+  const { requireFeature } = await import('@/lib/require-feature')
+  const guard = await requireFeature(context, 'uniplus')
+  if (guard) return guard
   return { props: {} }
 }

@@ -3,7 +3,7 @@ import { GetServerSideProps } from 'next'
 import { getSession, useSession } from 'next-auth/react'
 import { useRouter } from 'next/router'
 import { useForm } from 'react-hook-form'
-import { Check, X, Trash2, Plus, Loader2, UserCheck, UserX, Shield } from 'lucide-react'
+import { Check, X, Trash2, Plus, Loader2, UserCheck, UserX, Shield, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,8 +11,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { usuariosService, tabelasMargemService } from '@/services/api'
 import type { TabelaMargem } from '@/types'
+import { ALL_FEATURES, DEFAULT_PERMISSIONS } from '@/types'
+import type { UserTipo, Feature } from '@/types'
 import { useToast } from '@/hooks/use-toast'
 import { formatLocalDate } from '@/lib/utils'
+
+const FEATURE_LABELS: Record<string, string> = {
+  dashboard: 'Dashboard',
+  clientes: 'Clientes',
+  orcamentos: 'Orçamentos',
+  pedidos: 'Pedidos',
+  vendas: 'Vendas',
+  materiais: 'Materiais',
+  tabelas_margem: 'Tabelas de Margem',
+  condicoes_pagamento: 'Cond. Pagamento',
+  usuarios: 'Usuários',
+  uniplus: 'UniPlus',
+}
 
 interface UsuarioRow {
   id: number
@@ -26,6 +41,7 @@ interface UsuarioRow {
   aprovado_em: string | null
   tabela_margem_id: number | null
   tabela_margem_nome?: string
+  permissoes?: Record<string, boolean>
 }
 
 const TABS = [
@@ -47,6 +63,9 @@ export default function UsuariosPage() {
   const [saving, setSaving] = useState(false)
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [tabelasMargem, setTabelasMargem] = useState<TabelaMargem[]>([])
+  const [permsUser, setPermsUser] = useState<UsuarioRow | null>(null)
+  const [editPerms, setEditPerms] = useState<Record<string, boolean>>({})
+  const [savingPerms, setSavingPerms] = useState(false)
 
   const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<{
     nome: string; email: string; senha: string; tipo: string
@@ -93,10 +112,35 @@ export default function UsuariosPage() {
   async function handleChangeTipo(id: number, tipo: string) {
     try {
       await usuariosService.updateTipo(id, tipo)
-      toast({ title: 'Tipo atualizado' })
+      toast({ title: 'Tipo atualizado — permissões resetadas para o padrão' })
       load()
     } catch {
       toast({ title: 'Erro', variant: 'destructive' })
+    }
+  }
+
+  function openPermsModal(u: UsuarioRow) {
+    const defaults = DEFAULT_PERMISSIONS[u.tipo as UserTipo] ?? DEFAULT_PERMISSIONS.vendedor
+    const current: Record<string, boolean> = {}
+    for (const f of ALL_FEATURES) {
+      current[f] = u.permissoes?.[f] ?? defaults[f as Feature] ?? false
+    }
+    setEditPerms(current)
+    setPermsUser(u)
+  }
+
+  async function handleSavePerms() {
+    if (!permsUser) return
+    setSavingPerms(true)
+    try {
+      await usuariosService.updatePermissions(permsUser.id, editPerms)
+      toast({ title: 'Permissões atualizadas' })
+      setPermsUser(null)
+      load()
+    } catch {
+      toast({ title: 'Erro ao salvar permissões', variant: 'destructive' })
+    } finally {
+      setSavingPerms(false)
     }
   }
 
@@ -209,6 +253,7 @@ export default function UsuariosPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="vendedor">Vendedor</SelectItem>
+                      <SelectItem value="operador">Operador</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
                     </SelectContent>
                   </Select>
@@ -243,6 +288,12 @@ export default function UsuariosPage() {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex gap-1 justify-end">
+                    {u.ativo && (
+                      <Button variant="ghost" size="icon" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                        title="Permissões" onClick={() => openPermsModal(u)}>
+                        <Settings size={14} />
+                      </Button>
+                    )}
                     {!u.ativo && (
                       <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700 hover:bg-green-50"
                         title="Aprovar" onClick={() => handleApprove(u.id)}>
@@ -293,6 +344,7 @@ export default function UsuariosPage() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="vendedor">Vendedor</SelectItem>
+                  <SelectItem value="operador">Operador</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>
               </Select>
@@ -318,12 +370,60 @@ export default function UsuariosPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Permissions modal */}
+      <Dialog open={permsUser !== null} onOpenChange={(o) => !o && setPermsUser(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield size={16} /> Permissões — {permsUser?.nome}
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-[var(--muted-foreground)]">
+            Tipo: <span className="font-medium capitalize">{permsUser?.tipo}</span> — Marque as abas que este usuário pode acessar.
+          </p>
+          <div className="space-y-2 pt-2">
+            {ALL_FEATURES.map((feature) => (
+              <label key={feature} className="flex items-center gap-3 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={editPerms[feature] ?? false}
+                  onChange={(e) => setEditPerms(prev => ({ ...prev, [feature]: e.target.checked }))}
+                  className="h-4 w-4 rounded border-[var(--border)] accent-[var(--primary)]"
+                />
+                <span className="text-sm group-hover:text-[var(--foreground)] transition-colors">
+                  {FEATURE_LABELS[feature] ?? feature}
+                </span>
+              </label>
+            ))}
+          </div>
+          <div className="flex justify-between pt-3">
+            <Button type="button" variant="ghost" size="sm"
+              onClick={() => {
+                const defaults = DEFAULT_PERMISSIONS[(permsUser?.tipo as UserTipo) ?? 'vendedor'] ?? DEFAULT_PERMISSIONS.vendedor
+                const reset: Record<string, boolean> = {}
+                for (const f of ALL_FEATURES) reset[f] = defaults[f as Feature] ?? false
+                setEditPerms(reset)
+              }}
+            >
+              Resetar Padrão
+            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setPermsUser(null)}>Cancelar</Button>
+              <Button onClick={handleSavePerms} disabled={savingPerms}>
+                {savingPerms && <Loader2 size={14} className="animate-spin" />} Salvar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
 export const getServerSideProps: GetServerSideProps = async (ctx) => {
-  const session = await getSession(ctx)
-  if (!session) return { redirect: { destination: '/login', permanent: false } }
+  const { requireFeature } = await import('@/lib/require-feature')
+  const guard = await requireFeature(ctx, 'usuarios')
+  if (guard) return guard
   return { props: {} }
 }
