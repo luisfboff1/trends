@@ -132,6 +132,44 @@ async function main() {
   const vendedorEnts = entidades.filter(e => String(e.tipo || '').includes('4'));
   console.log(`  Clientes: ${clienteEnts.length}, Fornecedores: ${fornecedorEnts.length}, Vendedores: ${vendedorEnts.length}\n`);
 
+  // ═══ 1a. VENDEDORES ═══
+  console.log('  --- Sincronizando Vendedores ---');
+  let vndCreated2 = 0, vndUpdated2 = 0;
+  for (const v of vendedorEnts) {
+    const nome = v.razaoSocial?.trim() || v.nome?.trim() || '';
+    if (!nome) continue;
+    const codigo = String(v.codigo);
+    try {
+      const [existing] = await sql`SELECT id FROM usuarios WHERE uniplus_id = ${codigo}`;
+      if (existing) {
+        await sql`UPDATE usuarios SET nome = ${nome}, uniplus_updated_at = NOW(), updated_at = NOW() WHERE id = ${existing.id}`;
+        vndUpdated2++;
+      } else {
+        // Check by exact name
+        const [byName] = await sql`SELECT id FROM usuarios WHERE UPPER(nome) = UPPER(${nome}) AND uniplus_id IS NULL`;
+        if (byName) {
+          await sql`UPDATE usuarios SET uniplus_id = ${codigo}, uniplus_updated_at = NOW(), updated_at = NOW() WHERE id = ${byName.id}`;
+          vndUpdated2++;
+        } else {
+          // Create new user as vendedor (no password — can't login until admin sets it)
+          const email = v.email?.trim() || `vendedor.${codigo}@uniplus.local`;
+          await sql`INSERT INTO usuarios (nome, email, senha_hash, tipo, ativo, uniplus_id, uniplus_updated_at)
+            VALUES (${nome}, ${email}, 'UNIPLUS_NO_LOGIN', 'vendedor', ${v.inativo === 0}, ${codigo}, NOW())
+            ON CONFLICT (email) DO UPDATE SET uniplus_id = ${codigo}, nome = ${nome}, uniplus_updated_at = NOW()`;
+          vndCreated2++;
+        }
+      }
+    } catch (err) {
+      console.log(`  ERRO vendedor ${codigo}: ${err.message.substring(0, 80)}`);
+    }
+  }
+  console.log(`  Vendedores → Criados: ${vndCreated2}, Atualizados: ${vndUpdated2}\n`);
+
+  // Build vendedor lookup: uniplus codigo → usuarios.id
+  const vendedorRows = await sql`SELECT id, uniplus_id, nome FROM usuarios WHERE uniplus_id IS NOT NULL`;
+  const vendedorMap = new Map(vendedorRows.map(u => [u.uniplus_id, u.id]));
+  const vendedorNameMap = new Map(vendedorRows.map(u => [u.nome.toLowerCase(), u.id]));
+
   // Upsert clientes
   let cliCreated = 0, cliUpdated = 0, cliSkipped = 0;
   for (const e of clienteEnts) {
@@ -150,6 +188,7 @@ async function main() {
       cidade: e.cidade?.trim() || null,
       estado: e.estado?.trim() || null,
       ativo: e.inativo === 0,
+      vendedor_id: e.codigoVendedor ? (vendedorMap.get(String(e.codigoVendedor)) || null) : null,
     };
 
     try {
@@ -254,8 +293,12 @@ async function main() {
   // Pre-load lookups
   const clienteRows = await sql`SELECT id, uniplus_id FROM clientes WHERE uniplus_id IS NOT NULL`;
   const clienteMap = new Map(clienteRows.map(c => [c.uniplus_id, c.id]));
-  const userRows = await sql`SELECT id, nome FROM usuarios`;
+  const userRows = await sql`SELECT id, nome, uniplus_id FROM usuarios`;
   const userMap = new Map(userRows.map(u => [u.nome.toLowerCase(), u.id]));
+  // Also map by uniplus_id for vendedor linking
+  for (const u of userRows) {
+    if (u.uniplus_id) userMap.set(`UP_${u.uniplus_id}`, u.id);
+  }
   const existingNumeros = await sql`SELECT numero FROM pedidos`;
   const usedNumeros = new Set(existingNumeros.map(r => r.numero));
 
@@ -279,7 +322,8 @@ async function main() {
     rows.push({
       numero, cliente_id: v.codigoCliente ? (clienteMap.get(String(v.codigoCliente)) || null) : null,
       cliente_nome: v.nomeCliente || null,
-      vendedor_id: v.nomeVendedor ? (userMap.get(v.nomeVendedor.toLowerCase()) || null) : null,
+      uniplus_cliente_codigo: v.codigoCliente ? String(v.codigoCliente) : null,
+      vendedor_id: v.codigoVendedor ? (userMap.get(`UP_${v.codigoVendedor}`) || null) : (v.nomeVendedor ? (userMap.get(v.nomeVendedor.toLowerCase()) || null) : null),
       status: statusMap[v.status] || 'pendente',
       valor_total: parseFloat(v.valorTotal) || 0,
       data_entrega: v.emissao || null,
@@ -288,7 +332,7 @@ async function main() {
   }
 
   const BATCH = 200;
-  const COLS = ['numero', 'cliente_id', 'cliente_nome', 'vendedor_id', 'status', 'valor_total', 'data_entrega', 'origem', 'uniplus_id', 'uniplus_updated_at'];
+  const COLS = ['numero', 'cliente_id', 'cliente_nome', 'uniplus_cliente_codigo', 'vendedor_id', 'status', 'valor_total', 'data_entrega', 'origem', 'uniplus_id', 'uniplus_updated_at'];
   let vndCreated = 0, vndErrors = 0;
   for (let i = 0; i < rows.length; i += BATCH) {
     const batch = rows.slice(i, i + BATCH);
@@ -308,13 +352,17 @@ async function main() {
   }
   console.log(`  Inseridas: ${vndCreated}, Erros: ${vndErrors}`);
 
-  // Update existing (status, valor, re-link cliente)
+  // Update existing (status, valor, re-link cliente + vendedor)
   let vndUpdated = 0;
   for (const v of toUpdate) {
     const codigo = String(v.idVenda);
     const clienteId = v.codigoCliente ? (clienteMap.get(String(v.codigoCliente)) || null) : null;
+    const cliCodigo = v.codigoCliente ? String(v.codigoCliente) : null;
+    const vendedorId = v.codigoVendedor ? (userMap.get(`UP_${v.codigoVendedor}`) || null) : (v.nomeVendedor ? (userMap.get(v.nomeVendedor.toLowerCase()) || null) : null);
     await sql`UPDATE pedidos SET status = ${statusMap[v.status] || 'pendente'}, valor_total = ${parseFloat(v.valorTotal) || 0},
       cliente_id = COALESCE(${clienteId}, cliente_id), cliente_nome = COALESCE(${v.nomeCliente || null}, cliente_nome),
+      uniplus_cliente_codigo = COALESCE(${cliCodigo}, uniplus_cliente_codigo),
+      vendedor_id = COALESCE(${vendedorId}, vendedor_id),
       uniplus_updated_at = NOW(), updated_at = NOW() WHERE uniplus_id = ${codigo} AND origem = 'uniplus'`;
     vndUpdated++;
     if (vndUpdated % 2000 === 0) console.log(`  Update: ${vndUpdated}/${toUpdate.length}`);
@@ -323,6 +371,16 @@ async function main() {
 
   // ═══ 5. RE-MATCH vendas to clientes by name (batch SQL) ═══
   console.log('═══ RE-MATCH CLIENTES ═══\n');
+
+  // Match by uniplus_cliente_codigo → clientes.uniplus_id (most reliable)
+  const matched0 = await sql`
+    UPDATE pedidos p SET cliente_id = c.id
+    FROM clientes c
+    WHERE p.origem = 'uniplus' AND p.cliente_id IS NULL
+    AND p.uniplus_cliente_codigo IS NOT NULL AND c.uniplus_id = p.uniplus_cliente_codigo`;
+  console.log(`  Vinculados por codigo Uniplus: ${matched0.count}`);
+
+  // Fallback: exact name match
   const matched = await sql`
     UPDATE pedidos p SET cliente_id = c.id
     FROM clientes c
@@ -330,13 +388,32 @@ async function main() {
     AND p.cliente_nome IS NOT NULL AND c.razao_social = p.cliente_nome`;
   console.log(`  Vinculados por nome exato: ${matched.count}`);
 
-  // Also try ILIKE for case differences
+  // Fallback: case-insensitive name match
   const matched2 = await sql`
     UPDATE pedidos p SET cliente_id = c.id
     FROM clientes c
     WHERE p.origem = 'uniplus' AND p.cliente_id IS NULL
     AND p.cliente_nome IS NOT NULL AND UPPER(c.razao_social) = UPPER(p.cliente_nome)`;
   console.log(`  Vinculados por nome (case-insensitive): ${matched2.count}`);
+
+  // ═══ 5b. RE-MATCH VENDEDORES ═══
+  console.log('\n═══ RE-MATCH VENDEDORES ═══\n');
+
+  // Match vendas → vendedor via cliente's vendedor (if venda has no vendedor but cliente does)
+  const matchedVnd = await sql`
+    UPDATE pedidos p SET vendedor_id = c.vendedor_id
+    FROM clientes c
+    WHERE p.origem = 'uniplus' AND p.vendedor_id IS NULL
+    AND p.cliente_id IS NOT NULL AND p.cliente_id = c.id AND c.vendedor_id IS NOT NULL`;
+  console.log(`  Vendas vinculadas ao vendedor do cliente: ${matchedVnd.count}`);
+
+  // Stats
+  const [vStats] = await sql`
+    SELECT 
+      (SELECT COUNT(*) FROM pedidos WHERE origem = 'uniplus' AND vendedor_id IS NOT NULL) as vendas_com_vendedor,
+      (SELECT COUNT(*) FROM clientes WHERE vendedor_id IS NOT NULL) as clientes_com_vendedor`;
+  console.log(`  Clientes com vendedor: ${vStats.clientes_com_vendedor}`);
+  console.log(`  Vendas com vendedor: ${vStats.vendas_com_vendedor}`);
 
   // Update sync time
   await sql`UPDATE uniplus_config SET last_sync_at = NOW(), updated_at = NOW() WHERE ativo = true`;
@@ -364,6 +441,10 @@ async function main() {
   console.log(`CLIENTES: ${r.total_clientes} total (${r.clientes_uniplus} Uniplus)`);
   console.log(`PRODUTOS: ${r.total_produtos} total (${r.produtos_uniplus} Uniplus)`);
   console.log(`CONDIÇÕES: ${r.total_condicoes} total`);
+
+  const [vendedorStats] = await sql`SELECT COUNT(*) as total FROM usuarios WHERE uniplus_id IS NOT NULL`;
+  console.log(`VENDEDORES UNIPLUS: ${vendedorStats.total}`);
+
   console.log(`\nPEDIDOS TOTAL: ${r.total_pedidos}`);
   console.log(`  Excel: ${r.pedidos_importacao}`);
   console.log(`  Uniplus: ${r.vendas_uniplus}`);

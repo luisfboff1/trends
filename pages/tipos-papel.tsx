@@ -5,6 +5,9 @@ export default function TiposPapelPage() {
   return null
 }
 
-export const getServerSideProps: GetServerSideProps = async () => {
+export const getServerSideProps: GetServerSideProps = async (ctx) => {
+  const { requireFeature } = await import('@/lib/require-feature')
+  const guard = await requireFeature(ctx, 'materiais')
+  if (guard) return guard
   return { redirect: { destination: '/materiais', permanent: true } }
 }
