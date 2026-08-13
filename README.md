@@ -63,28 +63,14 @@ pnpm lint:fix
 
 ## Migrações de Banco
 
-Os arquivos SQL estão em `migrations/`. Para rodar:
+Os arquivos SQL estão em `migrations/`, numerados sequencialmente (a próxima é `014` — já existem duas `013`, ver `Docs/BUGS.md`). Para rodar, use o runner genérico em `scripts/run-migration.mjs`:
 
 ```bash
-# Criar script temporário run-migrations.mjs:
-cat > run-migrations.mjs << 'EOF'
-import fs from 'fs'
-import postgres from 'postgres'
-const sql = postgres(process.env.DATABASE_URL, { ssl: 'require', max: 1 })
-const files = process.argv.slice(2)
-for (const file of files) {
-  console.log(`Running ${file}...`)
-  await sql.unsafe(fs.readFileSync(file, 'utf8'))
-  console.log(`✓ ${file}`)
-}
-await sql.end()
-EOF
-
 # Rodar uma migração específica
-doppler run -- node run-migrations.mjs migrations/005_materiais_cadastros.sql
+doppler run -- node scripts/run-migration.mjs migrations/014_algo.sql
 
-# Rodar todas de uma vez
-doppler run -- node run-migrations.mjs migrations/005_materiais_cadastros.sql migrations/006_tabelas_margem.sql migrations/007_fornecedores_papel.sql migrations/008_orcamento_novos_campos.sql
+# Rodar várias de uma vez
+doppler run -- node scripts/run-migration.mjs migrations/014_a.sql migrations/015_b.sql
 ```
 
 ### Migrações aplicadas
@@ -151,16 +137,27 @@ services/
 types/
   index.ts                # Todas interfaces/types TypeScript
 
-migrations/               # SQL migrations (001-008)
+migrations/               # SQL migrations, numeradas sequencialmente
+scripts/                  # Ferramentas de linha de comando (run-migration, import Excel, sync UniPlus manual)
 store/                    # Zustand stores
 styles/                   # Tailwind globals
+Docs/                     # Arquitetura, banco de dados, regras de negócio, bugs conhecidos
 ```
+
+## Documentação
+
+A documentação viva do sistema fica em `Docs/` — mantenha atualizada à medida que o sistema evolui:
+
+- [`Docs/ARQUITETURA.md`](Docs/ARQUITETURA.md) — stack, camadas, fluxo de requisição, integração UniPlus
+- [`Docs/DATABASE.md`](Docs/DATABASE.md) — todas as tabelas, colunas, FKs e o que cada uma significa
+- [`Docs/REGRAS_NEGOCIO.md`](Docs/REGRAS_NEGOCIO.md) — motor de precificação, RBAC, fluxo orçamento→pedido
+- [`Docs/BUGS.md`](Docs/BUGS.md) — backlog de problemas conhecidos e dívida técnica
 
 ## Autenticação
 
 - **Google OAuth** — Login via Google, novos usuários ficam pendentes (`ativo=false`) até admin aprovar
 - **Credentials** — Login com email/senha (bcrypt)
-- **Roles:** `admin` (acesso total) e `vendedor` (orçamentos/pedidos)
+- **Roles:** `admin` (acesso total), `operador` (produção, sem dados financeiros/comerciais) e `vendedor` (clientes/orçamentos/pedidos/vendas) — mais permissões granulares por feature, ver `Docs/REGRAS_NEGOCIO.md`
 - JWT com validade de 24 horas
 
 ## Motor de Precificação

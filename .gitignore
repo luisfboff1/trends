@@ -8,6 +8,11 @@ out/
 # Build
 dist/
 build/
+*.tsbuildinfo
+
+# Python
+.venv/
+__pycache__/
 
 # Environment
 .env

@@ -3,10 +3,11 @@ Trends — Import historical production data from Excel to JSON.
 Reads the production spreadsheet and generates a JSON file ready for the API import endpoint.
 
 Usage:
-    python import_pedidos.py
+    python scripts/import-pedidos-from-excel.py
 
 Output:
-    pedidos_import.json — JSON array of parsed pedido records
+    scripts/pedidos_import.json — JSON array of parsed pedido records
+    Run scripts/import-pedidos-load-db.mjs afterward to load it into Postgres.
 """
 
 import json
@@ -20,9 +21,8 @@ from openpyxl.chartsheet import Chartsheet
 
 # ── Config ───────────────────────────────────────────────────────────────────
 
-EXCEL_PATH = (
-    Path(__file__).parent / "Reunião" / "TRENDS - TABELA PRODUCAO 2026 - LUIS.xlsx"
-)
+ROOT = Path(__file__).parent.parent
+EXCEL_PATH = ROOT / "Reunião" / "TRENDS - TABELA PRODUCAO 2026 - LUIS.xlsx"
 OUTPUT_PATH = Path(__file__).parent / "pedidos_import.json"
 
 # Tabs to skip (not monthly production)
