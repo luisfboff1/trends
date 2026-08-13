@@ -30,6 +30,32 @@ Ordem do cálculo, por item de orçamento:
 
 **Diferença do plano original** (`Plans/deep-hopping-engelbart.md`): o plano descrevia margem fixa (2.8x/2.1x) + desconto progressivo por quantidade. Isso foi substituído por margem configurável por tabela/faixa de rolos. A tabela de desconto progressivo (2% a 5.000un até 28% a 500.000+) **só existe no motor legacy** hoje.
 
+### 1.1.1 Espaçamento real por faca — Z (número de dentes) e engrenagem
+
+O espaçamento de 3mm do passo 1 acima é um **valor fixo genérico**. Cada faca física, na prática, tem um espaçamento próprio, determinado pelo número de dentes (**Z**) da engrenagem de corte. Isso vem de um sistema de produção separado ("Calcula Melhor opção Porta Clichês") que a Trends já usa há anos — reverso-projetamos a fórmula dele pra dentro do sistema (`lib/porta-cliche.ts`).
+
+**Fórmula (confirmada pra engrenagem `1/8CP`, batendo 71 valores reais sem nenhum erro):**
+
+```
+passo = 3.175mm                          // 1/8 polegada, fixo pra engrenagem 1/8CP
+circunferência = Z × passo
+montagem = FLOOR(circunferência / altura_etiqueta_mm)   // quantas etiquetas fecham a volta
+espaçamento = circunferência / montagem − altura_etiqueta_mm
+```
+
+`espaçamento` é classificado (limiares confirmados no bytecode da ferramenta original):
+
+| Espaçamento | Classificação |
+|---|---|
+| < 2.0mm | Espaçamento pequeno (ruim, aperta demais) |
+| 2.0mm – 2.5mm | ACEITÁVEL |
+| 2.5mm – 4.0mm | BOM |
+| ≥ 4.0mm | Espaçamento grande (ruim, folga demais) |
+
+Cada `faca` pode ter `numero_dentes` (Z) e `tipo_engrenagem` cadastrados (migration 014). Quando os dois estão preenchidos **e** a engrenagem é `1/8CP`, `pages/api/orcamentos/[id]/calcular.ts` usa o espaçamento real calculado em vez do 3mm fixo. Facas sem Z cadastrado, ou com engrenagem `M1`/`HELICOIDAL_20_M1` (ainda não confirmadas), continuam usando o fallback de 3mm — ver `Docs/BUGS.md`.
+
+O cadastro de faca (`/materiais`, aba Facas) tem uma calculadora embutida que reproduz a tela original: informa a altura da etiqueta e a engrenagem, mostra a lista de Z possíveis com Montagem/Espaçamento/Qualidade, e o usuário escolhe direto.
+
 ### 1.2 Motor legacy — `calcularItemLegacy()`
 
 Usado apenas para reabrir/recalcular orçamentos antigos que não tinham `faixas_margem`. Fórmula: `preco_por_mil = custo_por_mil × margem_fator × (1 − desconto_pct)`, onde `margem_fator` é 2.8 (vendedor) ou 2.1 (revenda) e `desconto_pct` vem da tabela fixa de desconto por quantidade (`DESCONTO_TABLE`). **Não usa tabela de margem nem quantidade de rolos.**

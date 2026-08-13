@@ -80,6 +80,8 @@ Múltiplos fornecedores por `tipo_papel_id`, cada um com seu próprio `preco_m2`
 ### `facas`
 Ferramentas de corte — define `largura_mm`, `altura_mm`, `colunas`, `largura_papel_mm`, `velocidade_multiplicador` e `percentual_adicional` usados como input direto do motor de precificação.
 
+`numero_dentes` (Z) e `tipo_engrenagem` (migration 014) são opcionais — quando preenchidos, o sistema calcula o **espaçamento real** entre etiquetas daquela faca (em vez do valor fixo de 3mm), usando a fórmula de `lib/porta-cliche.ts`. Só `tipo_engrenagem = '1/8CP'` tem a fórmula confirmada hoje; `M1` e `HELICOIDAL_20_M1` existem no schema mas a pricing engine ignora e cai no fallback de 3mm até serem confirmadas (ver `Docs/BUGS.md`).
+
 ### `cores_pantone`
 `codigo` (UNIQUE), `custo_m2` (default 0.30), `percentual_hora_separacao` — custo extra quando o item do orçamento usa `cor_tipo = 'pantone'`.
 
@@ -182,4 +184,4 @@ tubetes ←── itens_orcamento.tubete_id
 
 ## Migrations
 
-Numeradas sequencialmente em `migrations/`, aplicadas com `scripts/run-migration.mjs` (ver README). Note que existem **duas migrations `013`** no histórico (`013_pedidos_cliente_codigo.sql` e `013_rbac_permissoes.sql`) — ambas já aplicadas em produção, mas a numeração colidiu; a próxima migration deve ser `014`.
+Numeradas sequencialmente em `migrations/`, aplicadas com `scripts/run-migration.mjs` (ver README). Note que existem **duas migrations `013`** no histórico (`013_pedidos_cliente_codigo.sql` e `013_rbac_permissoes.sql`) — ambas já aplicadas em produção, mas a numeração colidiu; `014` já foi usada (`014_facas_porta_cliche.sql`), a próxima é `015`.

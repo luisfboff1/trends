@@ -35,7 +35,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       return res.status(400).json({ success: false, error: 'Nome, tipo, largura e altura são obrigatórios' })
     }
     const [faca] = await sql`
-      INSERT INTO facas (nome, tipo, largura_mm, altura_mm, largura_papel_mm, colunas, maquina, percentual_adicional, velocidade_multiplicador)
+      INSERT INTO facas (nome, tipo, largura_mm, altura_mm, largura_papel_mm, colunas, maquina, percentual_adicional, velocidade_multiplicador, numero_dentes, tipo_engrenagem)
       VALUES (
         ${body.nome},
         ${body.tipo},
@@ -45,7 +45,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         ${body.colunas ?? 1},
         ${body.maquina ?? null},
         ${body.percentual_adicional ?? 0},
-        ${body.velocidade_multiplicador ?? 1.0}
+        ${body.velocidade_multiplicador ?? 1.0},
+        ${body.numero_dentes ?? null},
+        ${body.tipo_engrenagem ?? null}
       )
       RETURNING *
     `

@@ -19,6 +19,7 @@ import { useToast } from '@/hooks/use-toast'
 import { formatCurrency } from '@/lib/utils'
 import { tipoPapelSchema, type TipoPapelInput } from '@/lib/validations/tipo-papel'
 import { facaSchema, type FacaInput } from '@/lib/validations/faca'
+import { buscarOpcoesZ, ENGRENAGENS_CONFIRMADAS, type TipoEngrenagem, type OpcaoZ } from '@/lib/porta-cliche'
 import type { TipoPapel, Faca, CorPantone, Tubete, Acabamento, FornecedorPapel } from '@/types'
 
 // ── Tab system ────────────────────────────────────────────────────────────────
@@ -359,13 +360,81 @@ const TIPOS_FACA = [
   { value: 'batida', label: 'Batida' },
 ]
 
+const TIPOS_ENGRENAGEM: { value: TipoEngrenagem; label: string }[] = [
+  { value: '1/8CP', label: '1/8CP' },
+  { value: 'M1', label: 'M1 (não confirmado)' },
+  { value: 'HELICOIDAL_20_M1', label: 'Helicoidal 20° Módulo 1 (não confirmado)' },
+]
+
+const QUALIDADE_STYLE: Record<OpcaoZ['qualidade'], string> = {
+  pequeno: 'text-[var(--muted-foreground)]',
+  aceitavel: 'text-amber-600',
+  bom: 'text-emerald-600 font-semibold',
+  grande: 'text-[var(--muted-foreground)]',
+}
+
+/** Mini calculadora de Z — igual à tela "Calcula Melhor opção Porta Clichês" usada na produção. */
+function CalculadoraZ({ alturaEtiqueta, tipoEngrenagem, onEscolher }: {
+  alturaEtiqueta: number; tipoEngrenagem?: TipoEngrenagem; onEscolher: (z: number) => void
+}) {
+  const [aberto, setAberto] = useState(false)
+  if (!tipoEngrenagem) return null
+  const confirmado = ENGRENAGENS_CONFIRMADAS.includes(tipoEngrenagem)
+  return (
+    <div className="col-span-3 space-y-2">
+      <button
+        type="button"
+        onClick={() => setAberto(v => !v)}
+        className="text-sm text-[var(--primary)] font-medium flex items-center gap-1"
+        disabled={!alturaEtiqueta}
+      >
+        {aberto ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        Ver opções de Z {!alturaEtiqueta && '(preencha a altura primeiro)'}
+      </button>
+      {aberto && alturaEtiqueta > 0 && (
+        <div className="border border-[var(--border)] rounded-lg max-h-56 overflow-y-auto">
+          {!confirmado && (
+            <p className="text-xs text-amber-600 px-3 py-2 bg-amber-50 border-b border-[var(--border)]">
+              Fórmula dessa engrenagem ainda não foi confirmada contra dado real. Os números abaixo são estimativa.
+            </p>
+          )}
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-[var(--muted)]">
+              <tr>
+                <Th>Z</Th><Th>Montagem</Th><Th>Espaçamento</Th><Th>Qualidade</Th><Th />
+              </tr>
+            </thead>
+            <tbody>
+              {buscarOpcoesZ(alturaEtiqueta, tipoEngrenagem).map(o => (
+                <tr key={o.z} className="border-t border-[var(--border)]">
+                  <Td>{o.z}</Td>
+                  <Td>{o.montagem}</Td>
+                  <Td>{o.espacamento.toFixed(2)}mm</Td>
+                  <Td className={QUALIDADE_STYLE[o.qualidade]}>{o.qualidadeLabel}</Td>
+                  <Td>
+                    <button type="button" onClick={() => { onEscolher(o.z); setAberto(false) }} className="text-xs text-[var(--primary)] underline">
+                      usar
+                    </button>
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function FacaForm({ defaultValues, onSubmit, loading }: {
   defaultValues?: Partial<FacaInput>; onSubmit: (d: FacaInput) => Promise<void>; loading?: boolean
 }) {
-  const { register, handleSubmit, control, formState: { errors } } = useForm<FacaInput>({
+  const { register, handleSubmit, control, watch, setValue, formState: { errors } } = useForm<FacaInput>({
     resolver: zodResolver(facaSchema),
     defaultValues: { colunas: 1, velocidade_multiplicador: 1, percentual_adicional: 0, ...defaultValues },
   })
+  const alturaEtiqueta = watch('altura_mm')
+  const tipoEngrenagem = watch('tipo_engrenagem') as TipoEngrenagem | undefined
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
@@ -417,6 +486,28 @@ function FacaForm({ defaultValues, onSubmit, loading }: {
           <Input type="number" step="0.01" {...register('velocidade_multiplicador', { valueAsNumber: true })} />
         </div>
       </div>
+      <div className="grid grid-cols-3 gap-4">
+        <div className="space-y-1.5">
+          <Label>Engrenagem</Label>
+          <Controller name="tipo_engrenagem" control={control} render={({ field }) => (
+            <Select value={field.value} onValueChange={field.onChange}>
+              <SelectTrigger><SelectValue placeholder="Nenhuma (usa 3mm fixo)" /></SelectTrigger>
+              <SelectContent>
+                {TIPOS_ENGRENAGEM.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )} />
+        </div>
+        <div className="space-y-1.5">
+          <Label>Z (número de dentes)</Label>
+          <Input type="number" {...register('numero_dentes', { valueAsNumber: true })} placeholder="Opcional" />
+        </div>
+      </div>
+      <CalculadoraZ
+        alturaEtiqueta={Number(alturaEtiqueta) || 0}
+        tipoEngrenagem={tipoEngrenagem}
+        onEscolher={(z) => setValue('numero_dentes', z, { shouldValidate: true })}
+      />
       <div className="flex justify-end gap-2 pt-2">
         <Button type="submit" disabled={loading}>{loading && <Loader2 size={14} className="animate-spin" />} Salvar</Button>
       </div>
@@ -481,12 +572,13 @@ function FacasTab() {
             <Th className="text-right">Altura</Th>
             <Th className="text-right hidden md:table-cell">Colunas</Th>
             <Th className="hidden lg:table-cell">Máquina</Th>
+            <Th className="text-right hidden lg:table-cell">Z</Th>
             <Th className="w-20" />
           </tr>
         </thead>
         <tbody>
-          {loading && <LoadingRow cols={7} />}
-          {!loading && facas.length === 0 && <EmptyRow cols={7} text="Nenhuma faca cadastrada" />}
+          {loading && <LoadingRow cols={8} />}
+          {!loading && facas.length === 0 && <EmptyRow cols={8} text="Nenhuma faca cadastrada" />}
           {!loading && facas.map(f => (
             <tr key={f.id} className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--muted)]/30 transition-colors">
               <Td className="font-medium">{f.nome}</Td>
@@ -499,6 +591,7 @@ function FacasTab() {
               <Td className="text-right">{Number(f.altura_mm)}mm</Td>
               <Td className="text-right hidden md:table-cell">{f.colunas}</Td>
               <Td className="hidden lg:table-cell text-[var(--muted-foreground)]">{f.maquina ?? '—'}</Td>
+              <Td className="text-right hidden lg:table-cell text-[var(--muted-foreground)]">{f.numero_dentes ?? '—'}</Td>
               <Td><ActionButtons onEdit={() => setModal({ open: true, faca: f })} onDelete={() => setDeleteId(f.id)} /></Td>
             </tr>
           ))}

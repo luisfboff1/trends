@@ -28,6 +28,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         maquina                  = ${body.maquina ?? faca.maquina},
         percentual_adicional     = ${body.percentual_adicional ?? faca.percentual_adicional},
         velocidade_multiplicador = ${body.velocidade_multiplicador ?? faca.velocidade_multiplicador},
+        numero_dentes            = ${body.numero_dentes ?? faca.numero_dentes},
+        tipo_engrenagem          = ${body.tipo_engrenagem ?? faca.tipo_engrenagem},
         ativo                    = ${body.ativo ?? faca.ativo},
         updated_at               = NOW()
       WHERE id = ${facaId}

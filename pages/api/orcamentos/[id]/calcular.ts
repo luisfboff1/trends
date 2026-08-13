@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import { withAuth } from '@/lib/auth-middleware'
 import sql from '@/lib/db'
 import { calcularItem, calcularMultiplasQuantidades, buscarMargemPorRolos } from '@/lib/pricing'
+import { espacamentoDaFaca } from '@/lib/porta-cliche'
 import type { FaixaMargem } from '@/types'
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -35,6 +36,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     let colunas = item.colunas ?? 1
     let velocidade_multiplicador = 1.0
     let percentual_adicional_faca = 0
+    let espacamento_mm: number | undefined
 
     if (item.faca_id) {
       const [faca] = await sql`SELECT * FROM facas WHERE id = ${item.faca_id}`
@@ -44,6 +46,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         colunas = faca.colunas
         velocidade_multiplicador = Number(faca.velocidade_multiplicador) || 1.0
         percentual_adicional_faca = Number(faca.percentual_adicional) || 0
+        espacamento_mm = espacamentoDaFaca(faca.numero_dentes, faca.tipo_engrenagem, Number(altura_mm)) ?? undefined
       }
     }
 
@@ -96,6 +99,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       tubete_custo_unidade,
       velocidade_multiplicador,
       percentual_adicional_faca,
+      espacamento_mm,
       acabamentos_percentuais,
       faixas_margem,
       tipo_margem_fallback: body.tipo_margem ?? 'vendedor',

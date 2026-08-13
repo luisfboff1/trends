@@ -80,6 +80,9 @@ export interface CalcItemParams {
   // Machine / faca type
   velocidade_multiplicador?: number
   percentual_adicional_faca?: number
+  // Espaçamento real da faca (calculado a partir do Z/engrenagem, ver lib/porta-cliche.ts).
+  // Se não informado, cai no fixo de 3mm (facas ainda sem Z cadastrado).
+  espacamento_mm?: number
   // Acabamentos (array de percentuais)
   acabamentos_percentuais?: number[]
   // Margin (from tabela_margem)
@@ -120,12 +123,14 @@ export function calcularItem(params: CalcItemParams): ItemCalcResult {
     acabamentos_percentuais = [],
     faixas_margem,
     tipo_margem_fallback = 'vendedor',
+    espacamento_mm,
   } = params
 
   const avisos: string[] = []
 
-  // 1. Altura total com espaçamento automático
-  const altura_total_mm = altura_mm + ESPACAMENTO_ALTURA_MM
+  // 1. Altura total com espaçamento — real da faca (Z/engrenagem) quando disponível,
+  // senão cai no fixo de 3mm (facas antigas sem Z cadastrado ainda)
+  const altura_total_mm = altura_mm + (espacamento_mm ?? ESPACAMENTO_ALTURA_MM)
 
   // 2. Metragem linear por rolo
   // Padrão: se não fornecido, calcular quantidade por rolo para ~40m de metragem

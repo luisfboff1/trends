@@ -55,7 +55,13 @@ Formato de cada item: **o que**, **impacto**, **evidência** (como confirmar/rep
 - **Evidência**: `migrations/013_pedidos_cliente_codigo.sql` e `migrations/013_rbac_permissoes.sql` coexistem.
 - **Sugestão**: a próxima migration deve ser `014`; não reutilizar `013` de novo. Não vale a pena renomear as existentes (já rodaram em produção).
 
-### 9. `Docs/Uniplus/plan.md` está desatualizado em vários pontos
+### 9. Fórmula de espaçamento por Z só está confirmada pra engrenagem `1/8CP`
+- **Impacto**: `lib/porta-cliche.ts` implementa o cálculo de espaçamento real por faca (Z + engrenagem), mas só `1/8CP` foi validada contra dados reais (71 valores, zero erro — Z 30-100, alturas 40mm e 50mm). `M1` e `HELICOIDAL_20_M1` usam a fórmula padrão de engrenagem (`passo = π × módulo`, ajustado por `cos(20°)` no caso helicoidal) como **hipótese**, baseada nas constantes `3.14159` e `0.3490658503988659` (=20° em radianos) encontradas no bytecode da ferramenta original (`com.flexonews.calcula.calculaPC`), mas nunca testadas contra um valor de Montagem/Espaçamento real.
+- **Mitigação já aplicada**: `espacamentoDaFaca()` só retorna um valor pra engrenagens em `ENGRENAGENS_CONFIRMADAS` (hoje só `1/8CP`) — facas cadastradas com `M1`/`HELICOIDAL_20_M1` caem automaticamente no fallback de 3mm na precificação, então não há risco de orçamento sair errado por causa disso. O cadastro de faca deixa isso visível ("não confirmado") na calculadora embutida.
+- **Sugestão**: pegar 1-2 capturas reais de `M1` e `HELICOIDAL_20_M1` (mesmo processo usado pra confirmar `1/8CP` — telinha "Calcula Melhor opção Porta Clichês", ou desmontar o bytecode com `javap -c -p com.flexonews.calcula.calculaPC` uma vez que o Java esteja instalado) antes de adicionar essas duas em `ENGRENAGENS_CONFIRMADAS`.
+- **Também não identificado**: a constante `3.8` encontrada no bytecode ao lado dos limiares confirmados (`2.0`, `2.5`, `4.0`). Os 71 valores reais batem perfeitamente só com esses três limiares — `3.8` pode ser usado em outra parte da classe, não necessariamente na classificação de qualidade.
+
+### 10. `Docs/Uniplus/plan.md` está desatualizado em vários pontos
 - **Impacto**: quem ler esse plano pra entender a integração UniPlus vai se basear em informação errada — ex.: descreve a "decisão crítica" Desktop-vs-Web como em aberto (já resolvida, ver `Docs/ARQUITETURA.md`), descreve `uniplus_config.conta` (a coluna real é `user_id`/`user_password`), e não menciona que a sync real roda via `scripts/uniplus-full-sync.mjs` fora da UI.
 - **Sugestão**: tratar `Docs/Uniplus/plan.md` como registro histórico da fase de planejamento, não como documentação corrente — `Docs/ARQUITETURA.md`, `Docs/DATABASE.md` e este arquivo são a fonte de verdade atual.
 

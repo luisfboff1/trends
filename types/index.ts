@@ -167,6 +167,7 @@ export interface FornecedorPapelForm {
 // ─── Facas ──────────────────────────────────────────────────────────────────
 
 export type TipoFaca = 'rotativa_160' | 'rotativa_250' | 'batida'
+export type TipoEngrenagemFaca = 'M1' | '1/8CP' | 'HELICOIDAL_20_M1'
 
 export interface Faca {
   id: number
@@ -179,6 +180,8 @@ export interface Faca {
   maquina?: string
   percentual_adicional: number
   velocidade_multiplicador: number
+  numero_dentes?: number
+  tipo_engrenagem?: TipoEngrenagemFaca
   ativo: boolean
   created_at: string
   updated_at: string
@@ -194,6 +197,8 @@ export interface FacaForm {
   maquina?: string
   percentual_adicional?: number
   velocidade_multiplicador?: number
+  numero_dentes?: number
+  tipo_engrenagem?: TipoEngrenagemFaca
 }
 
 // ─── Cores Pantone ──────────────────────────────────────────────────────────

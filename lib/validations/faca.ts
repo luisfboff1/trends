@@ -10,6 +10,8 @@ export const facaSchema = z.object({
   maquina: z.string().optional(),
   percentual_adicional: z.number().min(0).max(100).default(0),
   velocidade_multiplicador: z.number().positive().default(1.0),
+  numero_dentes: z.number().int().positive().optional(),
+  tipo_engrenagem: z.enum(['M1', '1/8CP', 'HELICOIDAL_20_M1']).optional(),
 })
 
 export type FacaInput = z.infer<typeof facaSchema>
