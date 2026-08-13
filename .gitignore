@@ -9,6 +9,7 @@ out/
 dist/
 build/
 *.tsbuildinfo
+calculos/
 
 # Python
 .venv/
