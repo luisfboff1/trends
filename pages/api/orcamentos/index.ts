@@ -78,7 +78,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           VALUES (
             ${orc.id}, ${item.tipo_papel_id}, ${item.largura_mm}, ${item.altura_mm},
             ${item.colunas ?? 1}, ${item.quantidade},
-            ${JSON.stringify(item.quantidades_alt ?? [item.quantidade])},
+            ${tx.json(item.quantidades_alt ?? [item.quantidade])},
             ${item.tipo_produto ?? 'etiqueta'},
             ${item.faca_id ?? null},
             ${item.cor_tipo ?? 'branca'},

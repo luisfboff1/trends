@@ -141,25 +141,37 @@ export default function OrcamentoDetailPage() {
       setFreteTipo(d.frete_tipo ?? 'automatico')
       setFreteValor(d.frete_valor ? Number(d.frete_valor) : 0)
       setFretePercentual(d.frete_percentual ? Number(d.frete_percentual) : 3)
-      setItens((d.itens ?? []).map((it: any) => ({
-        id: it.id,
-        tipo_produto: it.tipo_produto ?? 'etiqueta',
-        faca_id: it.faca_id ?? null,
-        tipo_papel_id: it.tipo_papel_id,
-        cor_tipo: it.cor_tipo ?? 'branca',
-        cor_pantone_id: it.cor_pantone_id ?? null,
-        tubete_id: it.tubete_id ?? null,
-        acabamentos_ids: it.acabamentos_ids ?? [],
-        quantidade_por_rolo: it.quantidade_por_rolo ?? it.quantidade ?? 1000,
-        quantidades: it.quantidades_alt?.length ? it.quantidades_alt : [it.quantidade ?? 1000],
-        observacoes: it.observacoes ?? '',
-        largura_mm: Number(it.largura_mm),
-        altura_mm: Number(it.altura_mm),
-        colunas: it.colunas ?? 1,
-        calcResults: (it.quantidades_alt?.length ? it.quantidades_alt : [it.quantidade ?? 1000]).map(() => null),
-      })))
-    } catch {
-      toast({ title: 'Erro ao carregar orçamento', variant: 'destructive' })
+      setItens((d.itens ?? []).map((it: any) => {
+        // quantidades_alt deveria vir como array (jsonb) — trata string/formato inesperado sem quebrar a tela
+        let quantidades: number[] = [it.quantidade ?? 1000]
+        if (Array.isArray(it.quantidades_alt) && it.quantidades_alt.length > 0) {
+          quantidades = it.quantidades_alt
+        } else if (typeof it.quantidades_alt === 'string') {
+          try {
+            const parsed = JSON.parse(it.quantidades_alt)
+            if (Array.isArray(parsed) && parsed.length > 0) quantidades = parsed
+          } catch { /* mantém o fallback */ }
+        }
+        return {
+          id: it.id,
+          tipo_produto: it.tipo_produto ?? 'etiqueta',
+          faca_id: it.faca_id ?? null,
+          tipo_papel_id: it.tipo_papel_id,
+          cor_tipo: it.cor_tipo ?? 'branca',
+          cor_pantone_id: it.cor_pantone_id ?? null,
+          tubete_id: it.tubete_id ?? null,
+          acabamentos_ids: it.acabamentos_ids ?? [],
+          quantidade_por_rolo: it.quantidade_por_rolo ?? it.quantidade ?? 1000,
+          quantidades,
+          observacoes: it.observacoes ?? '',
+          largura_mm: Number(it.largura_mm),
+          altura_mm: Number(it.altura_mm),
+          colunas: it.colunas ?? 1,
+          calcResults: quantidades.map(() => null),
+        }
+      }))
+    } catch (err: any) {
+      toast({ title: 'Erro ao carregar orçamento', description: err.response?.data?.error ?? err.message, variant: 'destructive' })
     } finally {
       setLoading(false)
     }

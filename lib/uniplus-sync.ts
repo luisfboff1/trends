@@ -51,7 +51,7 @@ async function finishSyncLog(sql: Sql, logId: number, result: SyncResult): Promi
       registros_criados = ${result.registros_criados},
       registros_atualizados = ${result.registros_atualizados},
       registros_erros = ${result.registros_erros},
-      erros = ${result.erros.length > 0 ? JSON.stringify(result.erros) : null},
+      erros = ${result.erros.length > 0 ? sql.json(result.erros) : null},
       finished_at = NOW()
     WHERE id = ${logId}
   `
