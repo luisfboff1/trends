@@ -40,10 +40,9 @@ Formato de cada item: **o que**, **impacto**, **evidência** (como confirmar/rep
 - **Evidência**: `SELECT cnpj, COUNT(*) FROM clientes WHERE cnpj IS NOT NULL GROUP BY cnpj HAVING COUNT(*) > 1;`
 - **Sugestão**: rodar essa query e avaliar se dá pra mesclar os duplicados; se a duplicidade for legítima (matriz/filial), considerar um campo separado em vez de duplicar `razao_social`+`cnpj`.
 
-### 6. Fluxo orçamento → pedido nunca foi usado em produção
-- **Impacto**: não é um bug de código (o endpoint `/api/orcamentos/[id]/converter` existe e parece correto), mas é uma lacuna de validação real: 0 pedidos com `origem='sistema'` existem hoje. O caminho "vendedor monta orçamento → aprova → converte em pedido" nunca rodou de ponta a ponta com dados reais, então bugs nele provavelmente não foram descobertos ainda.
-- **Evidência**: `SELECT COUNT(*) FROM pedidos WHERE origem='sistema';` → 0. Só 5 orçamentos existem no banco total (4 rascunho, 1 aprovado, 0 convertido).
-- **Sugestão**: antes de divulgar esse fluxo pros vendedores como "pronto", fazer um teste manual completo (criar cliente → orçamento → aprovar → converter → conferir pedido) em produção ou staging.
+### 6. Fluxo orçamento → pedido — validado em 2026-08-14, mas ainda pouco testado
+- **Atualização (2026-08-14)**: durante os testes da Roberta apareceu 1 pedido real com `origem='sistema'`, confirmando que "criar orçamento → aprovar → converter em pedido" funciona de ponta a ponta. Esse registro foi removido na limpeza geral de dados de teste (clientes/pedidos/orçamentos zerados pra começar limpo), mas o fluxo em si está confirmado funcional.
+- **Ainda vale testar**: só rodou uma vez, em ambiente de teste. Antes de divulgar como "pronto" pros vendedores, vale um teste manual completo de novo (criar cliente → orçamento → aprovar → converter → conferir pedido).
 
 ### 7. Export Trends → UniPlus nunca testado
 - **Impacto**: `exportCliente`/`exportOrcamento` em `lib/uniplus-sync.ts` e a UI de export em `/uniplus` existem em código, mas `0` orçamentos têm `uniplus_id` preenchido — o caminho de escrita de volta pro ERP nunca rodou contra o Yoda real.
