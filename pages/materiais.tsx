@@ -60,8 +60,8 @@ function EmptyRow({ cols, text = 'Nenhum item' }: { cols: number; text?: string 
 function ActionButtons({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
   return (
     <div className="flex gap-1 justify-end">
-      <Button variant="ghost" size="icon" onClick={onEdit}><Pencil size={14} /></Button>
-      <Button variant="ghost" size="icon" className="text-[var(--destructive)]" onClick={onDelete}><Trash2 size={14} /></Button>
+      <Button variant="ghost" size="icon" onClick={onEdit} title="Editar"><Pencil size={14} /></Button>
+      <Button variant="ghost" size="icon" className="text-[var(--destructive)]" onClick={onDelete} title="Excluir"><Trash2 size={14} /></Button>
     </div>
   )
 }
