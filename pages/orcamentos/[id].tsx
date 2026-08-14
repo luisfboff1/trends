@@ -10,14 +10,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
-  orcamentosService, clientesService, tiposPapelService,
+  orcamentosService, tiposPapelService,
   facasService, coresPantoneService, tubetesService,
   acabamentosService, condicoesPagamentoService, historicoFreteService,
 } from '@/services/api'
+import { ClienteCombobox } from '@/components/forms/cliente-combobox'
 import { useToast } from '@/hooks/use-toast'
 import { formatCurrency, formatLocalDate } from '@/lib/utils'
 import { gerarPdfOrcamento } from '@/lib/pdf-orcamento'
-import type { TipoPapel, Cliente, Faca, CorPantone, Tubete, Acabamento, CondicaoPagamento, ItemCalcResult, FreteTipo, CorTipo, HistoricoFrete } from '@/types'
+import type { TipoPapel, Faca, CorPantone, Tubete, Acabamento, CondicaoPagamento, ItemCalcResult, FreteTipo, CorTipo, HistoricoFrete } from '@/types'
 
 interface ItemRow {
   id?: number
@@ -82,7 +83,6 @@ export default function OrcamentoDetailPage() {
   const isNew = id === 'novo'
 
   // Data deps
-  const [clientes, setClientes] = useState<Cliente[]>([])
   const [tiposPapel, setTiposPapel] = useState<TipoPapel[]>([])
   const [facas, setFacas] = useState<Faca[]>([])
   const [coresPantone, setCoresPantone] = useState<CorPantone[]>([])
@@ -109,8 +109,7 @@ export default function OrcamentoDetailPage() {
   const [itens, setItens] = useState<ItemRow[]>([])
 
   const loadDependencies = useCallback(async () => {
-    const [c, t, f, cp, tb, ac, cond] = await Promise.all([
-      clientesService.list({ limit: 500 }),
+    const [t, f, cp, tb, ac, cond] = await Promise.all([
       tiposPapelService.list(true),
       facasService.list(),
       coresPantoneService.list(),
@@ -118,7 +117,6 @@ export default function OrcamentoDetailPage() {
       acabamentosService.list(),
       condicoesPagamentoService.list(),
     ])
-    setClientes(c.data.data.data)
     setTiposPapel(t.data.data.data ?? t.data.data)
     setFacas(f.data.data.data ?? f.data.data)
     setCoresPantone(cp.data.data.data ?? cp.data.data)
@@ -367,7 +365,7 @@ export default function OrcamentoDetailPage() {
     if (!orc) return
     setExportingPdf(true)
     try {
-      const cliente = clientes.find(c => c.id === orc.cliente_id) ?? orc.cliente
+      const cliente = orc.cliente
       await gerarPdfOrcamento({
         numero: orc.numero,
         data: new Date(orc.created_at).toLocaleDateString('pt-BR'),
@@ -466,12 +464,7 @@ export default function OrcamentoDetailPage() {
             <CardContent className="space-y-4">
               <div className="space-y-1.5">
                 <Label>Cliente *</Label>
-                <Select value={String(clienteId)} onValueChange={(v) => setClienteId(Number(v))} disabled={isReadonly}>
-                  <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                  <SelectContent>
-                    {clientes.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.razao_social}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <ClienteCombobox value={clienteId} onChange={(id) => setClienteId(id)} disabled={isReadonly} />
               </div>
 
               <div className="space-y-1.5">
