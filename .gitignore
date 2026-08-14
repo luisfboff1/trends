@@ -15,6 +15,9 @@ calculos/
 .venv/
 __pycache__/
 
+# Backups de banco (pg_dump) — nunca commitar, podem conter dados de cliente
+backups/
+
 # Environment
 .env
 .env.local
