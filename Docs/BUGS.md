@@ -55,13 +55,7 @@ Formato de cada item: **o que**, **impacto**, **evidência** (como confirmar/rep
 - **Evidência**: `migrations/013_pedidos_cliente_codigo.sql` e `migrations/013_rbac_permissoes.sql` coexistem.
 - **Sugestão**: a próxima migration deve ser `014`; não reutilizar `013` de novo. Não vale a pena renomear as existentes (já rodaram em produção).
 
-### 9. Fórmula de espaçamento por Z só está confirmada pra engrenagem `1/8CP`
-- **Impacto**: `lib/porta-cliche.ts` implementa o cálculo de espaçamento real por faca (Z + engrenagem), mas só `1/8CP` foi validada contra dados reais (71 valores, zero erro — Z 30-100, alturas 40mm e 50mm). `M1` e `HELICOIDAL_20_M1` usam a fórmula padrão de engrenagem (`passo = π × módulo`, ajustado por `cos(20°)` no caso helicoidal) como **hipótese**, baseada nas constantes `3.14159` e `0.3490658503988659` (=20° em radianos) encontradas no bytecode da ferramenta original (`com.flexonews.calcula.calculaPC`), mas nunca testadas contra um valor de Montagem/Espaçamento real.
-- **Mitigação já aplicada**: `espacamentoDaFaca()` só retorna um valor pra engrenagens em `ENGRENAGENS_CONFIRMADAS` (hoje só `1/8CP`) — facas cadastradas com `M1`/`HELICOIDAL_20_M1` caem automaticamente no fallback de 3mm na precificação, então não há risco de orçamento sair errado por causa disso. O cadastro de faca deixa isso visível ("não confirmado") na calculadora embutida.
-- **Sugestão**: pegar 1-2 capturas reais de `M1` e `HELICOIDAL_20_M1` (mesmo processo usado pra confirmar `1/8CP` — telinha "Calcula Melhor opção Porta Clichês", ou desmontar o bytecode com `javap -c -p com.flexonews.calcula.calculaPC` uma vez que o Java esteja instalado) antes de adicionar essas duas em `ENGRENAGENS_CONFIRMADAS`.
-- **Também não identificado**: a constante `3.8` encontrada no bytecode ao lado dos limiares confirmados (`2.0`, `2.5`, `4.0`). Os 71 valores reais batem perfeitamente só com esses três limiares — `3.8` pode ser usado em outra parte da classe, não necessariamente na classificação de qualidade.
-
-### 10. `Docs/Uniplus/plan.md` está desatualizado em vários pontos
+### 9. `Docs/Uniplus/plan.md` está desatualizado em vários pontos
 - **Impacto**: quem ler esse plano pra entender a integração UniPlus vai se basear em informação errada — ex.: descreve a "decisão crítica" Desktop-vs-Web como em aberto (já resolvida, ver `Docs/ARQUITETURA.md`), descreve `uniplus_config.conta` (a coluna real é `user_id`/`user_password`), e não menciona que a sync real roda via `scripts/uniplus-full-sync.mjs` fora da UI.
 - **Sugestão**: tratar `Docs/Uniplus/plan.md` como registro histórico da fase de planejamento, não como documentação corrente — `Docs/ARQUITETURA.md`, `Docs/DATABASE.md` e este arquivo são a fonte de verdade atual.
 
@@ -69,4 +63,14 @@ Formato de cada item: **o que**, **impacto**, **evidência** (como confirmar/rep
 
 ## Resolvidos
 
-_(nenhum ainda — quando resolver um item acima, mova pra cá com data e commit/PR.)_
+### Fórmula de espaçamento por Z confirmada nas três engrenagens (2026-08-13)
+Era: `lib/porta-cliche.ts` só tinha `1/8CP` confirmado contra dado real; `M1` e `HELICOIDAL_20_M1` eram hipótese (baseada em constantes de bytecode: π e 20° em radianos) e ficavam desligadas na precificação (fallback pro 3mm fixo).
+
+Resolvido pegando exports em PDF da ferramenta original pras duas engrenagens que faltavam (mesmo processo usado pra confirmar `1/8CP`: altura 50mm, Z 30–100). Bateram 100% com a hipótese:
+- `M1`: passo = π ≈ 3.14159mm — confirmado, 71/71 valores exatos
+- `HELICOIDAL_20_M1`: passo = π ÷ cos(20°) ≈ 3.34322mm — confirmado, 71/71 valores exatos
+- Os limiares de qualidade (2.0 / 2.5 / 4.0mm) se repetem idênticos nas três engrenagens
+
+As três agora estão em `ENGRENAGENS_CONFIRMADAS` e entram na precificação normalmente quando a faca tem Z cadastrado.
+
+**Ainda não identificado** (baixa prioridade, não bloqueia nada): a constante `3.8` encontrada no bytecode ao lado dos limiares confirmados (`2.0`, `2.5`, `4.0`). Os 213 valores reais batem perfeitamente só com esses três limiares nas três engrenagens — `3.8` deve ser usado em outra parte da classe `calculaPC`, não na classificação de qualidade.

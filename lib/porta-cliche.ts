@@ -3,31 +3,24 @@
  *
  * Reverso-projetado a partir do sistema "Calcula Melhor opção Porta Clichês"
  * (CalculosFlexo.jar) usado na produção. Fórmula e limiares de qualidade
- * confirmados batendo 71 valores reais (Z 30–100, altura 40mm e 50mm, 1/8CP)
- * e cruzados com as constantes numéricas achadas no bytecode da classe
- * `com.flexonews.calcula.calculaPC`.
- *
- * IMPORTANTE: só 1/8CP está confirmado. M1 e Helicoidal 20° Módulo 1 usam a
- * fórmula padrão de engrenagem (circular pitch = π × módulo, ajustado pelo
- * ângulo no caso helicoidal) como hipótese — as constantes π=3.14159 e
- * 20°=0.3490658503988659rad apareceram no bytecode ao lado da constante
- * confirmada 3.175 (1/8CP), mas nunca testamos contra um valor real de
- * Montagem/Espaçamento pra M1 ou Helicoidal. Não usar essas duas em produção
- * sem confirmar antes. Ver Docs/BUGS.md.
+ * confirmados batendo 213 valores reais (Z 30–100, altura 50mm, nas três
+ * engrenagens M1, 1/8CP e Helicoidal 20° Módulo 1 — zero erro em todas) e
+ * cruzados com as constantes numéricas achadas no bytecode da classe
+ * `com.flexonews.calcula.calculaPC` (π, 20° em radianos, 3.175, 2.0, 2.5, 4.0).
  */
 
 export type TipoEngrenagem = 'M1' | '1/8CP' | 'HELICOIDAL_20_M1'
 
-export const ENGRENAGENS_CONFIRMADAS: TipoEngrenagem[] = ['1/8CP']
+export const ENGRENAGENS_CONFIRMADAS: TipoEngrenagem[] = ['1/8CP', 'M1', 'HELICOIDAL_20_M1']
 
 const GRAUS_HELICOIDAL = 20
 const RAD_HELICOIDAL = (GRAUS_HELICOIDAL * Math.PI) / 180 // = 0.3490658503988659, achado no bytecode
 
-/** Passo circular (mm) por dente, por tipo de engrenagem. */
+/** Passo circular (mm) por dente, por tipo de engrenagem — todos confirmados contra dado real. */
 const PASSO_MM: Record<TipoEngrenagem, number> = {
-  '1/8CP': 3.175, // 1/8 polegada — CONFIRMADO (71/71 valores reais batendo)
-  'M1': Math.PI, // módulo 1mm × π — HIPÓTESE, não confirmado
-  'HELICOIDAL_20_M1': Math.PI / Math.cos(RAD_HELICOIDAL), // HIPÓTESE, não confirmado
+  '1/8CP': 3.175, // 1/8 polegada
+  'M1': Math.PI, // módulo 1mm × π
+  'HELICOIDAL_20_M1': Math.PI / Math.cos(RAD_HELICOIDAL), // módulo 1mm × π, ajustado pelo cosseno de 20°
 }
 
 export interface OpcaoZ {

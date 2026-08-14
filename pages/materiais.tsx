@@ -19,7 +19,7 @@ import { useToast } from '@/hooks/use-toast'
 import { formatCurrency } from '@/lib/utils'
 import { tipoPapelSchema, type TipoPapelInput } from '@/lib/validations/tipo-papel'
 import { facaSchema, type FacaInput } from '@/lib/validations/faca'
-import { buscarOpcoesZ, ENGRENAGENS_CONFIRMADAS, type TipoEngrenagem, type OpcaoZ } from '@/lib/porta-cliche'
+import { buscarOpcoesZ, type TipoEngrenagem, type OpcaoZ } from '@/lib/porta-cliche'
 import type { TipoPapel, Faca, CorPantone, Tubete, Acabamento, FornecedorPapel } from '@/types'
 
 // ── Tab system ────────────────────────────────────────────────────────────────
@@ -362,8 +362,8 @@ const TIPOS_FACA = [
 
 const TIPOS_ENGRENAGEM: { value: TipoEngrenagem; label: string }[] = [
   { value: '1/8CP', label: '1/8CP' },
-  { value: 'M1', label: 'M1 (não confirmado)' },
-  { value: 'HELICOIDAL_20_M1', label: 'Helicoidal 20° Módulo 1 (não confirmado)' },
+  { value: 'M1', label: 'M1' },
+  { value: 'HELICOIDAL_20_M1', label: 'Helicoidal 20° Módulo 1' },
 ]
 
 const QUALIDADE_STYLE: Record<OpcaoZ['qualidade'], string> = {
@@ -379,7 +379,6 @@ function CalculadoraZ({ alturaEtiqueta, tipoEngrenagem, onEscolher }: {
 }) {
   const [aberto, setAberto] = useState(false)
   if (!tipoEngrenagem) return null
-  const confirmado = ENGRENAGENS_CONFIRMADAS.includes(tipoEngrenagem)
   return (
     <div className="col-span-3 space-y-2">
       <button
@@ -393,11 +392,6 @@ function CalculadoraZ({ alturaEtiqueta, tipoEngrenagem, onEscolher }: {
       </button>
       {aberto && alturaEtiqueta > 0 && (
         <div className="border border-[var(--border)] rounded-lg max-h-56 overflow-y-auto">
-          {!confirmado && (
-            <p className="text-xs text-amber-600 px-3 py-2 bg-amber-50 border-b border-[var(--border)]">
-              Fórmula dessa engrenagem ainda não foi confirmada contra dado real. Os números abaixo são estimativa.
-            </p>
-          )}
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-[var(--muted)]">
               <tr>
