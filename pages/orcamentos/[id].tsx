@@ -396,8 +396,8 @@ export default function OrcamentoDetailPage() {
             observacoes: i.observacoes,
           })),
       })
-    } catch {
-      toast({ title: 'Erro ao gerar PDF', variant: 'destructive' })
+    } catch (err: any) {
+      toast({ title: 'Erro ao gerar PDF', description: err.response?.data?.error ?? err.message, variant: 'destructive' })
     } finally {
       setExportingPdf(false)
     }
