@@ -333,6 +333,7 @@ export interface ItemOrcamento {
   tubete_diametro_mm?: number     // JOIN
   acabamentos_ids: number[]
   quantidade: number
+  quantidades_alt?: number[]      // opções alternativas de quantidade (comparação), quantidade == quantidades_alt[0]
   quantidade_por_rolo?: number
   quantidade_rolos?: number
   metragem_linear?: number

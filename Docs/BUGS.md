@@ -63,6 +63,11 @@ Formato de cada item: **o que**, **impacto**, **evidência** (como confirmar/rep
 
 ## Resolvidos
 
+### Opções de quantidade do orçamento não sobreviviam ao salvar (2026-08-14)
+Era: o formulário de item de orçamento deixava adicionar várias "Opções de Quantidade" (ex: comparar preço pra 20 mil vs 30 mil), mas `pages/orcamentos/[id].tsx::handleSave` só enviava `quantidades[0]` pro back-end — as demais eram descartadas silenciosamente. Além disso, o `PUT /api/orcamentos/[id]` fazia `DELETE FROM itens_orcamento` seguido de vários `INSERT` **sem transação** — se qualquer insert falhasse (ex: `tipo_papel_id` apontando pra um registro já apagado), os itens ficavam vazios sem rollback, enquanto os campos do orçamento em si (frete, status) já tinham sido salvos por um UPDATE separado. Também faltava `cliente_id` na cláusula `UPDATE orcamentos SET ...`, então trocar o cliente de um orçamento existente não persistia.
+
+Resolvido: nova coluna `itens_orcamento.quantidades_alt` (JSONB, migration 015) guarda todas as opções comparadas — só a primeira conta no `valor_total`. As duas rotas (`POST /api/orcamentos`, `PUT /api/orcamentos/[id]`) agora usam `sql.begin()` (transação) pro DELETE+INSERT de itens, e o UPDATE passou a incluir `cliente_id`.
+
 ### Fórmula de espaçamento por Z confirmada nas três engrenagens (2026-08-13)
 Era: `lib/porta-cliche.ts` só tinha `1/8CP` confirmado contra dado real; `M1` e `HELICOIDAL_20_M1` eram hipótese (baseada em constantes de bytecode: π e 20° em radianos) e ficavam desligadas na precificação (fallback pro 3mm fixo).
 

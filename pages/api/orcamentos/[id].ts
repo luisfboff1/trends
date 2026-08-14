@@ -50,58 +50,66 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
   if (req.method === 'PUT') {
     const body = req.body
-    const [updated] = await sql`
-      UPDATE orcamentos SET
-        tipo_margem            = ${body.tipo_margem ?? orc.tipo_margem},
-        status                 = ${body.status ?? orc.status},
-        observacoes            = ${body.observacoes ?? orc.observacoes},
-        valor_total            = ${body.valor_total ?? orc.valor_total},
-        condicao_pagamento_id  = ${body.condicao_pagamento_id ?? orc.condicao_pagamento_id},
-        frete_tipo             = ${body.frete_tipo ?? orc.frete_tipo},
-        frete_valor            = ${body.frete_valor ?? orc.frete_valor},
-        frete_percentual       = ${body.frete_percentual ?? orc.frete_percentual},
-        updated_at             = NOW()
-      WHERE id = ${orcId}
-      RETURNING *
-    `
 
-    if (body.itens) {
-      await sql`DELETE FROM itens_orcamento WHERE orcamento_id = ${orcId}`
-      for (const item of body.itens) {
-        await sql`
-          INSERT INTO itens_orcamento (
-            orcamento_id, tipo_papel_id, largura_mm, altura_mm, colunas, quantidade,
-            tipo_produto, faca_id, cor_tipo, cor_pantone_id,
-            tubete_id, acabamentos_ids, quantidade_por_rolo,
-            quantidade_rolos, metragem_linear,
-            imagem_url, observacoes
-          )
-          VALUES (
-            ${orcId}, ${item.tipo_papel_id}, ${item.largura_mm}, ${item.altura_mm},
-            ${item.colunas ?? 1}, ${item.quantidade},
-            ${item.tipo_produto ?? 'etiqueta'},
-            ${item.faca_id ?? null},
-            ${item.cor_tipo ?? 'branca'},
-            ${item.cor_pantone_id ?? null},
-            ${item.tubete_id ?? null},
-            ${item.acabamentos_ids ?? []},
-            ${item.quantidade_por_rolo ?? null},
-            ${item.quantidade_rolos ?? null},
-            ${item.metragem_linear ?? null},
-            ${item.imagem_url ?? null},
-            ${item.observacoes ?? null}
-          )
+    const updated = await sql.begin(async (txRaw) => {
+      const tx = txRaw as unknown as typeof sql
+      const [updated] = await tx`
+        UPDATE orcamentos SET
+          cliente_id             = ${body.cliente_id ?? orc.cliente_id},
+          tipo_margem            = ${body.tipo_margem ?? orc.tipo_margem},
+          status                 = ${body.status ?? orc.status},
+          observacoes            = ${body.observacoes ?? orc.observacoes},
+          valor_total            = ${body.valor_total ?? orc.valor_total},
+          condicao_pagamento_id  = ${body.condicao_pagamento_id ?? orc.condicao_pagamento_id},
+          frete_tipo             = ${body.frete_tipo ?? orc.frete_tipo},
+          frete_valor            = ${body.frete_valor ?? orc.frete_valor},
+          frete_percentual       = ${body.frete_percentual ?? orc.frete_percentual},
+          updated_at             = NOW()
+        WHERE id = ${orcId}
+        RETURNING *
+      `
+
+      if (body.itens) {
+        await tx`DELETE FROM itens_orcamento WHERE orcamento_id = ${orcId}`
+        for (const item of body.itens) {
+          await tx`
+            INSERT INTO itens_orcamento (
+              orcamento_id, tipo_papel_id, largura_mm, altura_mm, colunas, quantidade,
+              quantidades_alt, tipo_produto, faca_id, cor_tipo, cor_pantone_id,
+              tubete_id, acabamentos_ids, quantidade_por_rolo,
+              quantidade_rolos, metragem_linear,
+              imagem_url, observacoes
+            )
+            VALUES (
+              ${orcId}, ${item.tipo_papel_id}, ${item.largura_mm}, ${item.altura_mm},
+              ${item.colunas ?? 1}, ${item.quantidade},
+              ${JSON.stringify(item.quantidades_alt ?? [item.quantidade])},
+              ${item.tipo_produto ?? 'etiqueta'},
+              ${item.faca_id ?? null},
+              ${item.cor_tipo ?? 'branca'},
+              ${item.cor_pantone_id ?? null},
+              ${item.tubete_id ?? null},
+              ${item.acabamentos_ids ?? []},
+              ${item.quantidade_por_rolo ?? null},
+              ${item.quantidade_rolos ?? null},
+              ${item.metragem_linear ?? null},
+              ${item.imagem_url ?? null},
+              ${item.observacoes ?? null}
+            )
+          `
+        }
+      }
+
+      // Save freight history if frete_valor > 0
+      if (body.frete_valor && body.frete_valor > 0) {
+        await tx`
+          INSERT INTO historico_frete (cliente_id, valor, orcamento_id)
+          VALUES (${orc.cliente_id}, ${body.frete_valor}, ${orcId})
         `
       }
-    }
 
-    // Save freight history if frete_valor > 0
-    if (body.frete_valor && body.frete_valor > 0) {
-      await sql`
-        INSERT INTO historico_frete (cliente_id, valor, orcamento_id)
-        VALUES (${orc.cliente_id}, ${body.frete_valor}, ${orcId})
-      `
-    }
+      return updated
+    })
 
     return res.json({ success: true, data: updated as Orcamento })
   }

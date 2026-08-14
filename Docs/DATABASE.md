@@ -124,6 +124,7 @@ Linhas de um orçamento. `orcamento_id` → `orcamentos.id` (`ON DELETE CASCADE`
 | `tipo_produto` | default `'etiqueta'` |
 | `faca_id`, `cor_tipo` (`'branca'\|'pantone'`), `cor_pantone_id`, `tubete_id`, `acabamentos_ids` (array de ids) | inputs do motor de precificação atual |
 | `quantidade_por_rolo`, `quantidade_rolos`, `metragem_linear` | resultado do cálculo, persistido |
+| `quantidades_alt` (migration 015) | JSONB — array com todas as opções de quantidade que o vendedor comparou nesse item (ex: `[20000, 30000]`). `quantidade` é sempre igual a `quantidades_alt[0]`; só ela entra no `valor_total` do orçamento, as demais são só pra comparação/redisplay |
 
 ### `historico_frete`
 `cliente_id`, `valor`, `data`, `orcamento_id` (nullable) — histórico de frete cobrado por cliente, usado para sugerir `frete_percentual` em orçamentos futuros.
@@ -184,4 +185,4 @@ tubetes ←── itens_orcamento.tubete_id
 
 ## Migrations
 
-Numeradas sequencialmente em `migrations/`, aplicadas com `scripts/run-migration.mjs` (ver README). Note que existem **duas migrations `013`** no histórico (`013_pedidos_cliente_codigo.sql` e `013_rbac_permissoes.sql`) — ambas já aplicadas em produção, mas a numeração colidiu; `014` já foi usada (`014_facas_porta_cliche.sql`), a próxima é `015`.
+Numeradas sequencialmente em `migrations/`, aplicadas com `scripts/run-migration.mjs` (ver README). Note que existem **duas migrations `013`** no histórico (`013_pedidos_cliente_codigo.sql` e `013_rbac_permissoes.sql`) — ambas já aplicadas em produção, mas a numeração colidiu; `014` e `015` já foram usadas, a próxima é `016`.

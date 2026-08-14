@@ -151,12 +151,12 @@ export default function OrcamentoDetailPage() {
         tubete_id: it.tubete_id ?? null,
         acabamentos_ids: it.acabamentos_ids ?? [],
         quantidade_por_rolo: it.quantidade_por_rolo ?? it.quantidade ?? 1000,
-        quantidades: [it.quantidade ?? 1000],
+        quantidades: it.quantidades_alt?.length ? it.quantidades_alt : [it.quantidade ?? 1000],
         observacoes: it.observacoes ?? '',
         largura_mm: Number(it.largura_mm),
         altura_mm: Number(it.altura_mm),
         colunas: it.colunas ?? 1,
-        calcResults: [null],
+        calcResults: (it.quantidades_alt?.length ? it.quantidades_alt : [it.quantidade ?? 1000]).map(() => null),
       })))
     } catch {
       toast({ title: 'Erro ao carregar orçamento', variant: 'destructive' })
@@ -313,6 +313,8 @@ export default function OrcamentoDetailPage() {
           altura_mm: i.altura_mm,
           colunas: i.colunas,
           quantidade: i.quantidades[0] ?? 1000,
+          // Guarda todas as opções de quantidade (comparação de cenários) — só a primeira conta no total
+          quantidades_alt: i.quantidades,
           quantidade_por_rolo: i.quantidade_por_rolo,
           quantidade_rolos: i.calcResults[0]?.quantidade_rolos ?? null,
           metragem_linear: i.calcResults[0]?.metragem_por_rolo ?? null,
@@ -725,9 +727,12 @@ export default function OrcamentoDetailPage() {
                   {item.quantidades.map((qty, qIdx) => (
                     <div key={qIdx} className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <Input type="number" min={1} className="h-8 text-xs flex-1" value={qty}
-                          onChange={(e) => updateQuantidade(idx, qIdx, Number(e.target.value))} disabled={isReadonly}
-                          placeholder="Quantidade desejada" />
+                        <div className="relative flex-1">
+                          <Input type="number" min={1} step="0.001" className="h-8 text-xs pr-10" value={qty / 1000}
+                            onChange={(e) => updateQuantidade(idx, qIdx, Math.round(Number(e.target.value) * 1000))} disabled={isReadonly}
+                            placeholder="Milheiro" />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--muted-foreground)]">mil</span>
+                        </div>
                         {item.quantidades.length > 1 && !isReadonly && (
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-[var(--destructive)]"
                             onClick={() => removeQuantidade(idx, qIdx)}>
@@ -782,7 +787,7 @@ function CalcResultRow({ calc }: { calc: ItemCalcResult }) {
         </div>
         <div>
           <p className="text-[var(--muted-foreground)]">Margem</p>
-          <p className="font-medium">{calc.margem_percentual ? `${Number(calc.margem_percentual)}%` : '—'}</p>
+          <p className="font-medium">{calc.margem_percentual ? `${Number(calc.margem_percentual).toFixed(2)}%` : '—'}</p>
         </div>
         <div>
           <p className="text-[var(--muted-foreground)]">Preço Venda</p>
