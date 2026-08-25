@@ -3,6 +3,7 @@ import { GetServerSideProps } from 'next'
 import { getSession } from 'next-auth/react'
 import { useRouter } from 'next/router'
 import { ArrowLeft, Plus, Trash2, Save, FileCheck2, Loader2, FileDown, AlertTriangle, Calculator } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Save, FileCheck2, Loader2, FileDown, AlertTriangle, Calculator, Copy, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -97,6 +98,7 @@ export default function OrcamentoDetailPage() {
   const [converting, setConverting] = useState(false)
   const [exportingPdf, setExportingPdf] = useState(false)
   const [calculating, setCalculating] = useState<number | null>(null)
+  const [calculatingAll, setCalculatingAll] = useState(false)
 
   // Form state
   const [clienteId, setClienteId] = useState<number | ''>('')
@@ -125,6 +127,43 @@ export default function OrcamentoDetailPage() {
     setCondicoesPagamento(cond.data.data.data ?? cond.data.data)
   }, [])
 
+  const calculateAllItems = useCallback(async (itemsList: ItemRow[]): Promise<ItemRow[]> => {
+    const validItems = itemsList.filter(it => it.faca_id && it.tipo_papel_id)
+    if (validItems.length === 0) return itemsList
+
+    try {
+      const payload = {
+        itens: itemsList.map(item => ({
+          faca_id: item.faca_id,
+          tipo_papel_id: item.tipo_papel_id,
+          cor_tipo: item.cor_tipo,
+          cor_pantone_id: item.cor_pantone_id,
+          tubete_id: item.tubete_id,
+          acabamentos_ids: item.acabamentos_ids,
+          quantidade_por_rolo: item.quantidade_por_rolo,
+          quantidades: item.quantidades,
+        })),
+      }
+      const orcId = isNew ? 0 : Number(id)
+      const { data } = await orcamentosService.calcular(orcId, payload)
+      const results = data.data ?? []
+
+      const updated = itemsList.map((item, idx) => {
+        const res = results[idx]
+        if (res?.quantidades) {
+          return { ...item, calcResults: res.quantidades }
+        } else if (res?.calc) {
+          return { ...item, calcResults: [res.calc] }
+        }
+        return item
+      })
+      setItens(updated)
+      return updated
+    } catch {
+      return itemsList
+    }
+  }, [id, isNew])
+
   const loadOrcamento = useCallback(async () => {
     if (isNew) return
     setLoading(true)
@@ -141,6 +180,8 @@ export default function OrcamentoDetailPage() {
       setFretePercentual(d.frete_percentual ? Number(d.frete_percentual) : 3)
       setItens((d.itens ?? []).map((it: any) => {
         // quantidades_alt deveria vir como array (jsonb) — trata string/formato inesperado sem quebrar a tela
+
+      const parsedItens: ItemRow[] = (d.itens ?? []).map((it: any) => {
         let quantidades: number[] = [it.quantidade ?? 1000]
         if (Array.isArray(it.quantidades_alt) && it.quantidades_alt.length > 0) {
           quantidades = it.quantidades_alt
@@ -149,6 +190,7 @@ export default function OrcamentoDetailPage() {
             const parsed = JSON.parse(it.quantidades_alt)
             if (Array.isArray(parsed) && parsed.length > 0) quantidades = parsed
           } catch { /* mantém o fallback */ }
+          } catch { /* fallback */ }
         }
         return {
           id: it.id,
@@ -168,12 +210,20 @@ export default function OrcamentoDetailPage() {
           calcResults: quantidades.map(() => null),
         }
       }))
+      })
+      setItens(parsedItens)
+
+      // Auto calculate prices for all loaded items
+      if (parsedItens.some(i => i.faca_id && i.tipo_papel_id)) {
+        calculateAllItems(parsedItens)
+      }
     } catch (err: any) {
       toast({ title: 'Erro ao carregar orçamento', description: err.response?.data?.error ?? err.message, variant: 'destructive' })
     } finally {
       setLoading(false)
     }
   }, [id, isNew])
+  }, [id, isNew, calculateAllItems])
 
   useEffect(() => {
     loadDependencies()
@@ -191,6 +241,21 @@ export default function OrcamentoDetailPage() {
 
   function addItem() {
     setItens(prev => [...prev, emptyItem()])
+  }
+
+  function duplicateItem(idx: number) {
+    setItens(prev => {
+      const itemToCopy = prev[idx]
+      const copy: ItemRow = {
+        ...itemToCopy,
+        id: undefined,
+        calcResults: itemToCopy.quantidades.map(() => null),
+      }
+      const next = [...prev]
+      next.splice(idx + 1, 0, copy)
+      return next
+    })
+    toast({ title: 'Item duplicado! Ajuste a faca ou quantidade conforme desejado.' })
   }
 
   function removeItem(idx: number) {
@@ -222,6 +287,9 @@ export default function OrcamentoDetailPage() {
       const next = [...prev]
       const item = { ...next[idx] }
       item.quantidades = [...item.quantidades, item.quantidades[item.quantidades.length - 1] || 1000]
+      const lastQty = item.quantidades[item.quantidades.length - 1] || 1000
+      const newQty = lastQty * 2
+      item.quantidades = [...item.quantidades, newQty]
       item.calcResults = [...item.calcResults, null]
       next[idx] = item
       return next
@@ -288,6 +356,18 @@ export default function OrcamentoDetailPage() {
     }
   }
 
+  async function handleCalcularTodos() {
+    setCalculatingAll(true)
+    try {
+      await calculateAllItems(itens)
+      toast({ title: 'Cálculos atualizados com sucesso!' })
+    } catch (err: any) {
+      toast({ title: 'Erro ao calcular itens', variant: 'destructive' })
+    } finally {
+      setCalculatingAll(false)
+    }
+  }
+
   // Compute total from first quantity of each item
   const valorTotal = itens.reduce((sum, item) => {
     const firstCalc = item.calcResults[0]
@@ -302,6 +382,16 @@ export default function OrcamentoDetailPage() {
 
     setSaving(true)
     try {
+      // Calculate any items that haven't been calculated yet
+      const freshItens = await calculateAllItems(itens)
+
+      const currentSubtotal = freshItens.reduce((sum, item) => {
+        const firstCalc = item.calcResults[0]
+        return sum + (firstCalc?.preco_venda ?? 0)
+      }, 0)
+      const currentFrete = freteTipo === 'automatico' ? currentSubtotal * fretePercentual / 100 : freteValor
+      const finalTotal = currentSubtotal + currentFrete
+
       const payload = {
         cliente_id: clienteId,
         status,
@@ -312,6 +402,8 @@ export default function OrcamentoDetailPage() {
         frete_percentual: freteTipo === 'automatico' ? fretePercentual : null,
         valor_total: valorTotal + valorFrete,
         itens: itens.map(i => ({
+        valor_total: finalTotal,
+        itens: freshItens.map(i => ({
           tipo_papel_id: i.tipo_papel_id,
           tipo_produto: i.tipo_produto,
           faca_id: i.faca_id,
@@ -335,10 +427,12 @@ export default function OrcamentoDetailPage() {
       if (isNew) {
         const { data } = await orcamentosService.create(payload)
         toast({ title: 'Orçamento criado' })
+        toast({ title: 'Orçamento criado com sucesso!' })
         router.replace(`/orcamentos/${data.data.id}`)
       } else {
         await orcamentosService.update(Number(id), payload)
         toast({ title: 'Orçamento salvo' })
+        toast({ title: 'Orçamento salvo com sucesso!' })
         loadOrcamento()
       }
     } catch (err: any) {
@@ -366,16 +460,36 @@ export default function OrcamentoDetailPage() {
     setExportingPdf(true)
     try {
       const cliente = orc.cliente
+      const freshItens = await calculateAllItems(itens)
+      const cliente = orc?.cliente || {}
+
+      const currentSubtotal = freshItens.reduce((sum, item) => {
+        const firstCalc = item.calcResults[0]
+        return sum + (firstCalc?.preco_venda ?? 0)
+      }, 0)
+      const currentFrete = freteTipo === 'automatico' ? currentSubtotal * fretePercentual / 100 : freteValor
+      const condNome = condicoesPagamento.find(c => c.id === condicaoPagamentoId)?.nome || orc?.condicao_pagamento_nome
+
       await gerarPdfOrcamento({
         numero: orc.numero,
         data: new Date(orc.created_at).toLocaleDateString('pt-BR'),
         status: orc.status,
+        numero: orc?.numero || 'NOVO',
+        data: orc?.created_at ? new Date(orc.created_at).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR'),
+        status: status,
         tipo_margem: 'vendedor',
         observacoes: observacoes || undefined,
         valor_total: valorTotal + valorFrete,
+        valor_total: currentSubtotal + currentFrete,
+        frete_valor: currentFrete,
+        frete_tipo: freteTipo,
+        condicao_pagamento_nome: condNome,
+        vendedor: orc?.vendedor_nome,
         cliente: {
           razao_social: cliente?.razao_social ?? '',
           cnpj: cliente?.cnpj ?? '',
+          razao_social: cliente?.razao_social || orc?.cliente_nome || 'Cliente',
+          cnpj: cliente?.cnpj || '',
           email: cliente?.email,
           telefone: cliente?.telefone,
           endereco: cliente?.endereco,
@@ -383,6 +497,7 @@ export default function OrcamentoDetailPage() {
           estado: cliente?.estado,
         },
         itens: itens
+        itens: freshItens
           .filter(i => i.tipo_papel_id)
           .map(i => ({
             tipo_papel_nome: tiposPapel.find(t => t.id === i.tipo_papel_id)?.nome ?? '',
@@ -393,7 +508,46 @@ export default function OrcamentoDetailPage() {
             preco_m2: Number(tiposPapel.find(t => t.id === i.tipo_papel_id)?.preco_m2 ?? 0),
             observacoes: i.observacoes,
           })),
+          .map(i => {
+            const faca = facas.find(f => f.id === i.faca_id)
+            const papel = tiposPapel.find(t => t.id === i.tipo_papel_id)
+            const cor = coresPantone.find(c => c.id === i.cor_pantone_id)
+            const tubete = tubetes.find(t => t.id === i.tubete_id)
+            const acabs = acabamentos.filter(a => i.acabamentos_ids.includes(a.id)).map(a => a.nome)
+
+            const opcoes = i.quantidades.map((qty, qIdx) => {
+              const res = i.calcResults[qIdx]
+              const rolos = res?.quantidade_rolos ?? (i.quantidade_por_rolo ? Math.ceil(qty / i.quantidade_por_rolo) : 1)
+              return {
+                quantidade: qty,
+                quantidade_rolos: rolos,
+                metragem_por_rolo: res?.metragem_por_rolo,
+                preco_unitario: res?.preco_unitario,
+                preco_venda: res?.preco_venda,
+              }
+            })
+
+            return {
+              tipo_produto: i.tipo_produto,
+              faca_nome: faca?.nome,
+              tipo_papel_nome: papel?.nome || 'Papel',
+              largura_mm: i.largura_mm,
+              altura_mm: i.altura_mm,
+              colunas: i.colunas,
+              quantidade: i.quantidades[0] ?? 0,
+              cor_nome: i.cor_tipo === 'pantone' && cor ? cor.codigo : undefined,
+              tubete_nome: tubete ? `${tubete.diametro_mm}mm` : undefined,
+              acabamentos_nomes: acabs,
+              observacoes: i.observacoes || undefined,
+              quantidade_rolos: i.calcResults[0]?.quantidade_rolos,
+              metragem_por_rolo: i.calcResults[0]?.metragem_por_rolo,
+              preco_unitario: i.calcResults[0]?.preco_unitario,
+              preco_venda: i.calcResults[0]?.preco_venda,
+              opcoes,
+            }
+          }),
       })
+      toast({ title: 'PDF exportado com sucesso!' })
     } catch (err: any) {
       toast({ title: 'Erro ao gerar PDF', description: err.response?.data?.error ?? err.message, variant: 'destructive' })
     } finally {
@@ -571,11 +725,29 @@ export default function OrcamentoDetailPage() {
                 <Plus size={14} /> Adicionar Item
               </Button>
             )}
+            <div>
+              <h3 className="text-sm font-semibold">Itens e Facas do Orçamento</h3>
+              <p className="text-xs text-[var(--muted-foreground)]">Adicione diferentes facas e tamanhos no mesmo orçamento.</p>
+            </div>
+            <div className="flex gap-2">
+              {itens.length > 0 && (
+                <Button variant="outline" size="sm" onClick={handleCalcularTodos} disabled={calculatingAll} title="Recalcular todos os itens">
+                  {calculatingAll ? <Loader2 size={13} className="animate-spin mr-1" /> : <RefreshCw size={13} className="mr-1" />}
+                  Calcular Todos
+                </Button>
+              )}
+              {!isReadonly && (
+                <Button variant="default" size="sm" onClick={addItem}>
+                  <Plus size={14} className="mr-1" /> Adicionar Faca / Item
+                </Button>
+              )}
+            </div>
           </div>
 
           {itens.length === 0 && (
             <div className="rounded-xl border border-dashed border-[var(--border)] py-12 text-center text-sm text-[var(--muted-foreground)]">
               Nenhum item. Clique em &quot;Adicionar Item&quot; para começar.
+              Nenhum item. Clique em &quot;Adicionar Faca / Item&quot; para começar.
             </div>
           )}
 
@@ -599,6 +771,24 @@ export default function OrcamentoDetailPage() {
                         {TIPOS_PRODUTO.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                       </SelectContent>
                     </Select>
+          {itens.map((item, idx) => {
+            const facaSelecionada = facas.find(f => f.id === item.faca_id)
+            return (
+              <Card key={idx} className="relative overflow-hidden border-[var(--border)]">
+                {/* Item Card Header */}
+                <div className="bg-[var(--muted)]/50 px-4 py-2.5 border-b border-[var(--border)] flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-[var(--primary)] text-white text-xs font-bold px-2 py-0.5 rounded">
+                      Item {idx + 1}
+                    </span>
+                    <span className="text-xs font-semibold text-[var(--foreground)]">
+                      {facaSelecionada ? facaSelecionada.nome : 'Selecione o Modelo de Faca'}
+                    </span>
+                    {item.largura_mm > 0 && (
+                      <span className="text-[11px] text-[var(--muted-foreground)] hidden sm:inline">
+                        ({item.largura_mm}×{item.altura_mm}mm, {item.colunas} {item.colunas === 1 ? 'coluna' : 'colunas'})
+                      </span>
+                    )}
                   </div>
 
                   <div className="col-span-2 space-y-1.5">
@@ -613,6 +803,19 @@ export default function OrcamentoDetailPage() {
                         ))}
                       </SelectContent>
                     </Select>
+                  <div className="flex items-center gap-1">
+                    {!isReadonly && (
+                      <>
+                        <Button type="button" variant="ghost" size="sm" className="h-7 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                          onClick={() => duplicateItem(idx)} title="Duplicar este item com outra faca ou quantidade">
+                          <Copy size={12} className="mr-1" /> Duplicar
+                        </Button>
+                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-[var(--destructive)] hover:bg-[var(--destructive)]/10"
+                          onClick={() => removeItem(idx)} title="Remover item">
+                          <Trash2 size={13} />
+                        </Button>
+                      </>
+                    )}
                   </div>
 
                   <div className="space-y-1.5">
@@ -644,6 +847,18 @@ export default function OrcamentoDetailPage() {
                     <Label className="text-xs text-[var(--muted-foreground)]">Colunas</Label>
                     <Input type="number" className="h-8 text-xs bg-[var(--muted)]/30" value={item.colunas} readOnly />
                   </div>
+                <CardContent className="pt-4 space-y-4">
+                  {/* Row 1: Tipo Produto + Faca */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Tipo Produto</Label>
+                      <Select value={item.tipo_produto} onValueChange={(v) => updateItem(idx, { tipo_produto: v })} disabled={isReadonly}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {TIPOS_PRODUTO.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
                   <div className="space-y-1.5">
                     <Label className="text-xs">Cor</Label>
@@ -655,15 +870,35 @@ export default function OrcamentoDetailPage() {
                       </SelectContent>
                     </Select>
                   </div>
+                    <div className="col-span-2 space-y-1.5">
+                      <Label className="text-xs font-semibold">Modelo de Faca *</Label>
+                      <Select value={String(item.faca_id ?? '')} onValueChange={(v) => handleFacaChange(idx, Number(v))} disabled={isReadonly}>
+                        <SelectTrigger className="h-8 text-xs font-medium"><SelectValue placeholder="Selecione o modelo da faca..." /></SelectTrigger>
+                        <SelectContent>
+                          {getFacasForItem(item).map(f => (
+                            <SelectItem key={f.id} value={String(f.id)}>
+                              {f.nome} ({Number(f.largura_mm)}×{Number(f.altura_mm)}mm, {f.colunas}col)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
                   {item.cor_tipo === 'pantone' ? (
                     <div className="space-y-1.5">
                       <Label className="text-xs">Cor Pantone</Label>
                       <Select value={String(item.cor_pantone_id ?? '')} onValueChange={(v) => updateItem(idx, { cor_pantone_id: Number(v) })} disabled={isReadonly}>
                         <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Cor..." /></SelectTrigger>
+                      <Label className="text-xs font-semibold">Material *</Label>
+                      <Select value={String(item.tipo_papel_id || '')} onValueChange={(v) => updateItem(idx, { tipo_papel_id: Number(v) })} disabled={isReadonly}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Papel..." /></SelectTrigger>
                         <SelectContent>
                           {coresPantone.filter(c => c.ativo !== false).map(c => (
                             <SelectItem key={c.id} value={String(c.id)}>{c.codigo} (+{formatCurrency(Number(c.custo_m2))}/m²)</SelectItem>
+                          {tiposPapel.filter(t => t.ativo).map(t => (
+                            <SelectItem key={t.id} value={String(t.id)}>
+                              {t.nome} ({formatCurrency(Number((t as any).preco_m2_medio ?? t.preco_m2))}/m²)
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -704,6 +939,57 @@ export default function OrcamentoDetailPage() {
                           </label>
                         )
                       })}
+                  {/* Row 2: Auto-filled dimensions (readonly) + Cor + Tubete */}
+                  <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-[var(--muted-foreground)]">Largura</Label>
+                      <Input type="number" className="h-8 text-xs bg-[var(--muted)]/30" value={item.largura_mm} readOnly />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-[var(--muted-foreground)]">Altura</Label>
+                      <Input type="number" className="h-8 text-xs bg-[var(--muted)]/30" value={item.altura_mm} readOnly />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-[var(--muted-foreground)]">Colunas</Label>
+                      <Input type="number" className="h-8 text-xs bg-[var(--muted)]/30" value={item.colunas} readOnly />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Cor</Label>
+                      <Select value={item.cor_tipo} onValueChange={(v) => updateItem(idx, { cor_tipo: v as CorTipo, cor_pantone_id: v === 'branca' ? null : item.cor_pantone_id })} disabled={isReadonly}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="branca">Branca</SelectItem>
+                          <SelectItem value="pantone">Pantone</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {item.cor_tipo === 'pantone' ? (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Cor Pantone</Label>
+                        <Select value={String(item.cor_pantone_id ?? '')} onValueChange={(v) => updateItem(idx, { cor_pantone_id: Number(v) })} disabled={isReadonly}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Cor..." /></SelectTrigger>
+                          <SelectContent>
+                            {coresPantone.filter(c => c.ativo !== false).map(c => (
+                              <SelectItem key={c.id} value={String(c.id)}>{c.codigo} (+{formatCurrency(Number(c.custo_m2))}/m²)</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : <div />}
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Tubete</Label>
+                      <Select value={item.tubete_id ? String(item.tubete_id) : '__none__'} onValueChange={(v) => updateItem(idx, { tubete_id: v === '__none__' ? null : Number(v) })} disabled={isReadonly}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Tubete..." /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Nenhum</SelectItem>
+                          {tubetes.filter(t => t.ativo !== false).map(t => (
+                            <SelectItem key={t.id} value={String(t.id)}>{t.diametro_mm}mm</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                   <div className="space-y-1.5">
@@ -727,6 +1013,32 @@ export default function OrcamentoDetailPage() {
                         {calculating === idx ? <Loader2 size={12} className="animate-spin" /> : <Calculator size={12} />}
                         Calcular
                       </Button>
+                  {/* Row 3: Acabamentos + Qtd por rolo */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Acabamentos</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {acabamentos.filter(a => a.ativo !== false).map(a => {
+                          const checked = item.acabamentos_ids.includes(a.id)
+                          return (
+                            <label key={a.id} className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs cursor-pointer transition-colors ${
+                              checked ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : 'border-[var(--border)] hover:bg-[var(--muted)]/30'
+                            }`}>
+                              <input type="checkbox" className="sr-only" checked={checked} disabled={isReadonly}
+                                onChange={() => {
+                                  const ids = checked ? item.acabamentos_ids.filter(id => id !== a.id) : [...item.acabamentos_ids, a.id]
+                                  updateItem(idx, { acabamentos_ids: ids })
+                                }} />
+                              {a.nome} ({Number(a.percentual_adicional)}%)
+                            </label>
+                          )
+                        })}
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold">Quantidade por Rolo (etiquetas/rolo)</Label>
+                      <Input type="number" className="h-8 text-xs" value={item.quantidade_por_rolo}
+                        onChange={(e) => updateItem(idx, { quantidade_por_rolo: Number(e.target.value) })} disabled={isReadonly} />
                     </div>
                   </div>
                   {item.quantidades.map((qty, qIdx) => (
@@ -742,8 +1054,24 @@ export default function OrcamentoDetailPage() {
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-[var(--destructive)]"
                             onClick={() => removeQuantidade(idx, qIdx)}>
                             <Trash2 size={12} />
+
+                  {/* Row 4: Quantidades / Rolos (multiple) */}
+                  <div className="space-y-2 pt-2 border-t border-[var(--border)]">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label className="text-xs font-semibold">Opções de Quantidade e Rolos</Label>
+                        <p className="text-[11px] text-[var(--muted-foreground)]">Adicione opções para comparar preços por quantidade/rolos no PDF (ex: 1 rolo, 10 rolos, 20 rolos).</p>
+                      </div>
+                      <div className="flex gap-2">
+                        {!isReadonly && item.quantidades.length < 5 && (
+                          <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => addQuantidade(idx)}>
+                            <Plus size={12} className="mr-1" /> Mais Opção
                           </Button>
                         )}
+                        <Button type="button" size="sm" className="h-7 text-xs" onClick={() => handleCalcular(idx)} disabled={calculating === idx}>
+                          {calculating === idx ? <Loader2 size={12} className="animate-spin mr-1" /> : <Calculator size={12} className="mr-1" />}
+                          Calcular
+                        </Button>
                       </div>
                       {/* Calc results */}
                       {item.calcResults[qIdx] && (
@@ -752,6 +1080,39 @@ export default function OrcamentoDetailPage() {
                     </div>
                   ))}
                 </div>
+                    {item.quantidades.map((qty, qIdx) => {
+                      const qtdPorRolo = item.quantidade_por_rolo > 0 ? item.quantidade_por_rolo : 1000
+                      const rolosEstimados = Math.max(1, Math.ceil(qty / qtdPorRolo))
+                      return (
+                        <div key={qIdx} className="space-y-1 bg-[var(--muted)]/20 p-2.5 rounded-lg border border-[var(--border)]">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-[var(--muted-foreground)] min-w-16">
+                              Opção {qIdx + 1}:
+                            </span>
+                            <div className="relative flex-1">
+                              <Input type="number" min={1} step="0.001" className="h-8 text-xs pr-10" value={qty / 1000}
+                                onChange={(e) => updateQuantidade(idx, qIdx, Math.round(Number(e.target.value) * 1000))} disabled={isReadonly}
+                                placeholder="Milheiro" />
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--muted-foreground)]">mil un</span>
+                            </div>
+                            <span className="text-xs font-medium bg-[var(--card)] px-2.5 py-1 rounded border border-[var(--border)] text-[var(--foreground)] whitespace-nowrap">
+                              = {qty.toLocaleString('pt-BR')} un ({rolosEstimados} {rolosEstimados === 1 ? 'rolo' : 'rolos'})
+                            </span>
+                            {item.quantidades.length > 1 && !isReadonly && (
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-[var(--destructive)]"
+                                onClick={() => removeQuantidade(idx, qIdx)} title="Remover esta opção">
+                                <Trash2 size={12} />
+                              </Button>
+                            )}
+                          </div>
+                          {/* Calc results */}
+                          {item.calcResults[qIdx] && (
+                            <CalcResultRow calc={item.calcResults[qIdx]!} />
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
 
                 {/* Observações do item */}
                 <div className="space-y-1.5">
@@ -762,6 +1123,22 @@ export default function OrcamentoDetailPage() {
               </CardContent>
             </Card>
           ))}
+                  {/* Observações do item */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Observações do item</Label>
+                    <Input className="h-8 text-xs" value={item.observacoes}
+                      onChange={(e) => updateItem(idx, { observacoes: e.target.value })} disabled={isReadonly} />
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+
+          {!isReadonly && (
+            <Button variant="outline" className="w-full border-dashed py-5 text-sm gap-2 font-medium hover:border-[var(--primary)] hover:text-[var(--primary)]" onClick={addItem}>
+              <Plus size={16} /> Adicionar Outro Modelo de Faca / Item
+            </Button>
+          )}
         </div>
       </div>
     </div>

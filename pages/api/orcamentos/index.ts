@@ -54,6 +54,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         INSERT INTO orcamentos (
           numero, cliente_id, vendedor_id, tipo_margem, status, observacoes,
           condicao_pagamento_id, frete_tipo, frete_valor, frete_percentual
+          condicao_pagamento_id, frete_tipo, frete_valor, frete_percentual, valor_total
         )
         VALUES (
           ${numero}, ${body.cliente_id}, ${user.id},
@@ -62,6 +63,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           ${body.frete_tipo ?? 'automatico'},
           ${body.frete_valor ?? 0},
           ${body.frete_percentual ?? 3.0}
+          ${body.frete_percentual ?? 3.0},
+          ${body.valor_total ?? 0}
         )
         RETURNING *
       `

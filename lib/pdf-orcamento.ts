@@ -1,19 +1,34 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
+export interface PdfItemOption {
+  quantidade: number
+  quantidade_rolos?: number
+  metragem_por_rolo?: number
+  preco_unitario?: number
+  preco_venda?: number
+}
+
 export interface PdfItem {
+  faca_nome?: string
+  tipo_produto?: string
   tipo_papel_nome: string
   largura_mm: number
   altura_mm: number
   colunas: number
   quantidade: number
   preco_m2: number
+  preco_m2?: number
+  cor_nome?: string
+  tubete_nome?: string
+  acabamentos_nomes?: string[]
   observacoes?: string
   // New calc fields (optional for backward compat)
   quantidade_rolos?: number
   metragem_por_rolo?: number
   preco_venda?: number
   preco_unitario?: number
+  opcoes?: PdfItemOption[]
 }
 
 export interface PdfOrcamentoOptions {
@@ -24,6 +39,7 @@ export interface PdfOrcamentoOptions {
   observacoes?: string
   valor_total: number
   frete_valor?: number
+  frete_tipo?: string
   condicao_pagamento_nome?: string
   cliente: {
     razao_social: string
@@ -51,6 +67,8 @@ function formatCurrency(v: number) {
 function formatCNPJ(cnpj: string) {
   const c = cnpj.replace(/\D/g, '')
   if (c.length !== 14) return cnpj
+  const c = (cnpj || '').replace(/\D/g, '')
+  if (c.length !== 14) return cnpj || '—'
   return `${c.slice(0,2)}.${c.slice(2,5)}.${c.slice(5,8)}/${c.slice(8,12)}-${c.slice(12)}`
 }
 
@@ -114,6 +132,7 @@ export async function gerarPdfOrcamento(opts: PdfOrcamentoOptions): Promise<void
   doc.text(`Nº ${opts.numero}`, pageW - margin, y + 10, { align: 'right' })
   doc.text(`Data: ${opts.data}`, pageW - margin, y + 15, { align: 'right' })
   doc.text(`Status: ${opts.status.toUpperCase()}`, pageW - margin, y + 20, { align: 'right' })
+  doc.text(`Status: ${(opts.status || 'rascunho').toUpperCase()}`, pageW - margin, y + 20, { align: 'right' })
 
   y += 24
 
@@ -139,6 +158,7 @@ export async function gerarPdfOrcamento(opts: PdfOrcamentoOptions): Promise<void
   doc.setFontSize(10)
   doc.setTextColor(...BLACK)
   doc.text(opts.cliente.razao_social, margin + 4, y + 11)
+  doc.text(opts.cliente.razao_social || 'Cliente não identificado', margin + 4, y + 11)
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
@@ -167,6 +187,7 @@ export async function gerarPdfOrcamento(opts: PdfOrcamentoOptions): Promise<void
   doc.setFontSize(8)
   doc.setTextColor(...RED)
   doc.text('ITENS DO ORÇAMENTO', margin, y)
+  doc.text('ITENS E OPÇÕES DO ORÇAMENTO', margin, y)
   y += 4
 
   const rows = opts.itens.map((item) => {
@@ -179,11 +200,72 @@ export async function gerarPdfOrcamento(opts: PdfOrcamentoOptions): Promise<void
       item.preco_unitario != null ? formatCurrency(item.preco_unitario) : '—',
       item.preco_venda != null ? formatCurrency(item.preco_venda) : '—',
     ]
+  const rows: any[][] = []
+
+  opts.itens.forEach((item, itemIdx) => {
+    const itemPrefix = opts.itens.length > 1 ? `Item ${itemIdx + 1}: ` : ''
+    const itemTitle = item.faca_nome ? `${itemPrefix}${item.faca_nome}` : `${itemPrefix}${item.tipo_papel_nome}`
+
+    const details: string[] = [item.tipo_papel_nome]
+    if (item.cor_nome) details.push(`Cor: ${item.cor_nome}`)
+    if (item.tubete_nome) details.push(`Tubete: ${item.tubete_nome}`)
+    if (item.acabamentos_nomes && item.acabamentos_nomes.length > 0) {
+      details.push(`Acabamentos: ${item.acabamentos_nomes.join(', ')}`)
+    }
+    if (item.observacoes) details.push(`Obs: ${item.observacoes}`)
+
+    const specFull = `${itemTitle}\n${details.join(' | ')}`
+    const dimStr = `${item.largura_mm} × ${item.altura_mm} mm\n(${item.colunas} col)`
+
+    const opcoes = item.opcoes && item.opcoes.length > 0
+      ? item.opcoes
+      : [{
+          quantidade: item.quantidade,
+          quantidade_rolos: item.quantidade_rolos,
+          metragem_por_rolo: item.metragem_por_rolo,
+          preco_unitario: item.preco_unitario,
+          preco_venda: item.preco_venda,
+        }]
+
+    opcoes.forEach((op, opIdx) => {
+      const isMultiOp = opcoes.length > 1
+      const opLabel = isMultiOp ? ` [Opção ${opIdx + 1}]` : ''
+      const specCell = opIdx === 0
+        ? specFull
+        : `↳ Opção ${opIdx + 1} (${itemTitle})`
+
+      const rolosText = op.quantidade_rolos != null
+        ? `${op.quantidade_rolos} ${op.quantidade_rolos === 1 ? 'rolo' : 'rolos'}`
+        : '—'
+
+      const metragemText = op.metragem_por_rolo != null
+        ? `${Number(op.metragem_por_rolo).toFixed(1)} m`
+        : '—'
+
+      const precoUnitText = op.preco_unitario != null
+        ? formatCurrency(op.preco_unitario)
+        : '—'
+
+      const precoVendaText = op.preco_venda != null
+        ? formatCurrency(op.preco_venda)
+        : '—'
+
+      rows.push([
+        specCell,
+        dimStr,
+        `${op.quantidade.toLocaleString('pt-BR')} un`,
+        rolosText,
+        metragemText,
+        precoUnitText,
+        precoVendaText,
+      ])
+    })
   })
 
   autoTable(doc, {
     startY: y,
     head: [['Material', 'Dimensões', 'Col.', 'Qtd.', 'Rolos', 'Preço/unid', 'Total']],
+    head: [['Item / Material', 'Dimensões', 'Qtd (un)', 'Rolos', 'Metragem', 'Preço/unid', 'Total']],
     body: rows,
     margin: { left: margin, right: margin },
     styles: { fontSize: 8, cellPadding: 2.5 },
@@ -199,9 +281,15 @@ export async function gerarPdfOrcamento(opts: PdfOrcamentoOptions): Promise<void
       1: { cellWidth: 28 },
       2: { cellWidth: 12, halign: 'center' },
       3: { cellWidth: 22, halign: 'right' },
+      0: { cellWidth: 50 },
+      1: { cellWidth: 26, halign: 'center' },
+      2: { cellWidth: 20, halign: 'right' },
+      3: { cellWidth: 18, halign: 'center' },
       4: { cellWidth: 18, halign: 'center' },
       5: { cellWidth: 28, halign: 'right' },
       6: { cellWidth: 28, halign: 'right' },
+      5: { cellWidth: 24, halign: 'right' },
+      6: { cellWidth: 26, halign: 'right' },
     },
     didDrawPage: (data) => {
       // Page number footer
@@ -222,6 +310,7 @@ export async function gerarPdfOrcamento(opts: PdfOrcamentoOptions): Promise<void
 
   // ── Total box ────────────────────────────────────────────────────────────────
   const boxW = 80
+  const boxW = 86
   const boxX = pageW - margin - boxW
   let boxY = afterTable
 
@@ -231,14 +320,17 @@ export async function gerarPdfOrcamento(opts: PdfOrcamentoOptions): Promise<void
     doc.setTextColor(...GRAY)
     doc.text(`Frete: ${formatCurrency(opts.frete_valor)}`, boxX + 4, boxY + 5)
     boxY += 10
+    boxY += 8
   }
 
   doc.setFillColor(RED[0], RED[1], RED[2])
   doc.roundedRect(boxX, boxY, boxW, 12, 2, 2, 'F')
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(10)
+  doc.setFontSize(9)
   doc.setTextColor(...WHITE)
   doc.text('TOTAL', boxX + 4, boxY + 8)
+  doc.text('TOTAL BASE', boxX + 4, boxY + 8)
   doc.text(formatCurrency(opts.valor_total), boxX + boxW - 4, boxY + 8, { align: 'right' })
 
   // ── Info / conditions ────────────────────────────────────────────────────────
@@ -269,8 +361,11 @@ export async function gerarPdfOrcamento(opts: PdfOrcamentoOptions): Promise<void
   doc.text('Validade deste orçamento: 7 dias.', margin, infoY)
   infoY += 4
   doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7)
   doc.setTextColor(...GRAY)
   doc.text('Poderá haver variação de ±10% na quantidade entregue, conforme prática do segmento.', margin, infoY)
+  infoY += 3
+  doc.text('* Quando houver múltiplas opções de quantidade (rolos), o valor total acima refere-se à primeira opção de cada item.', margin, infoY)
 
   // ── Footer ───────────────────────────────────────────────────────────────────
   const pageH = doc.internal.pageSize.getHeight()
@@ -285,3 +380,4 @@ export async function gerarPdfOrcamento(opts: PdfOrcamentoOptions): Promise<void
 
   doc.save(`orcamento-${opts.numero}.pdf`)
 }
+
