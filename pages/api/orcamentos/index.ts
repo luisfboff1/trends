@@ -53,7 +53,6 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       const [orc] = await tx`
         INSERT INTO orcamentos (
           numero, cliente_id, vendedor_id, tipo_margem, status, observacoes,
-          condicao_pagamento_id, frete_tipo, frete_valor, frete_percentual
           condicao_pagamento_id, frete_tipo, frete_valor, frete_percentual, valor_total
         )
         VALUES (
@@ -62,7 +61,6 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           ${body.condicao_pagamento_id ?? null},
           ${body.frete_tipo ?? 'automatico'},
           ${body.frete_valor ?? 0},
-          ${body.frete_percentual ?? 3.0}
           ${body.frete_percentual ?? 3.0},
           ${body.valor_total ?? 0}
         )

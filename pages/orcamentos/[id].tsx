@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { GetServerSideProps } from 'next'
 import { getSession } from 'next-auth/react'
 import { useRouter } from 'next/router'
-import { ArrowLeft, Plus, Trash2, Save, FileCheck2, Loader2, FileDown, AlertTriangle, Calculator } from 'lucide-react'
 import { ArrowLeft, Plus, Trash2, Save, FileCheck2, Loader2, FileDown, AlertTriangle, Calculator, Copy, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -178,8 +177,6 @@ export default function OrcamentoDetailPage() {
       setFreteTipo(d.frete_tipo ?? 'automatico')
       setFreteValor(d.frete_valor ? Number(d.frete_valor) : 0)
       setFretePercentual(d.frete_percentual ? Number(d.frete_percentual) : 3)
-      setItens((d.itens ?? []).map((it: any) => {
-        // quantidades_alt deveria vir como array (jsonb) — trata string/formato inesperado sem quebrar a tela
 
       const parsedItens: ItemRow[] = (d.itens ?? []).map((it: any) => {
         let quantidades: number[] = [it.quantidade ?? 1000]
@@ -189,7 +186,6 @@ export default function OrcamentoDetailPage() {
           try {
             const parsed = JSON.parse(it.quantidades_alt)
             if (Array.isArray(parsed) && parsed.length > 0) quantidades = parsed
-          } catch { /* mantém o fallback */ }
           } catch { /* fallback */ }
         }
         return {
@@ -209,7 +205,6 @@ export default function OrcamentoDetailPage() {
           colunas: it.colunas ?? 1,
           calcResults: quantidades.map(() => null),
         }
-      }))
       })
       setItens(parsedItens)
 
@@ -222,7 +217,6 @@ export default function OrcamentoDetailPage() {
     } finally {
       setLoading(false)
     }
-  }, [id, isNew])
   }, [id, isNew, calculateAllItems])
 
   useEffect(() => {
@@ -286,7 +280,6 @@ export default function OrcamentoDetailPage() {
     setItens(prev => {
       const next = [...prev]
       const item = { ...next[idx] }
-      item.quantidades = [...item.quantidades, item.quantidades[item.quantidades.length - 1] || 1000]
       const lastQty = item.quantidades[item.quantidades.length - 1] || 1000
       const newQty = lastQty * 2
       item.quantidades = [...item.quantidades, newQty]
@@ -400,8 +393,6 @@ export default function OrcamentoDetailPage() {
         frete_tipo: freteTipo,
         frete_valor: freteTipo === 'manual' ? freteValor : null,
         frete_percentual: freteTipo === 'automatico' ? fretePercentual : null,
-        valor_total: valorTotal + valorFrete,
-        itens: itens.map(i => ({
         valor_total: finalTotal,
         itens: freshItens.map(i => ({
           tipo_papel_id: i.tipo_papel_id,
@@ -415,7 +406,6 @@ export default function OrcamentoDetailPage() {
           altura_mm: i.altura_mm,
           colunas: i.colunas,
           quantidade: i.quantidades[0] ?? 1000,
-          // Guarda todas as opções de quantidade (comparação de cenários) — só a primeira conta no total
           quantidades_alt: i.quantidades,
           quantidade_por_rolo: i.quantidade_por_rolo,
           quantidade_rolos: i.calcResults[0]?.quantidade_rolos ?? null,
@@ -426,12 +416,10 @@ export default function OrcamentoDetailPage() {
 
       if (isNew) {
         const { data } = await orcamentosService.create(payload)
-        toast({ title: 'Orçamento criado' })
         toast({ title: 'Orçamento criado com sucesso!' })
         router.replace(`/orcamentos/${data.data.id}`)
       } else {
         await orcamentosService.update(Number(id), payload)
-        toast({ title: 'Orçamento salvo' })
         toast({ title: 'Orçamento salvo com sucesso!' })
         loadOrcamento()
       }
@@ -456,10 +444,8 @@ export default function OrcamentoDetailPage() {
   }
 
   async function handleExportPdf() {
-    if (!orc) return
     setExportingPdf(true)
     try {
-      const cliente = orc.cliente
       const freshItens = await calculateAllItems(itens)
       const cliente = orc?.cliente || {}
 
@@ -471,23 +457,17 @@ export default function OrcamentoDetailPage() {
       const condNome = condicoesPagamento.find(c => c.id === condicaoPagamentoId)?.nome || orc?.condicao_pagamento_nome
 
       await gerarPdfOrcamento({
-        numero: orc.numero,
-        data: new Date(orc.created_at).toLocaleDateString('pt-BR'),
-        status: orc.status,
         numero: orc?.numero || 'NOVO',
         data: orc?.created_at ? new Date(orc.created_at).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR'),
         status: status,
         tipo_margem: 'vendedor',
         observacoes: observacoes || undefined,
-        valor_total: valorTotal + valorFrete,
         valor_total: currentSubtotal + currentFrete,
         frete_valor: currentFrete,
         frete_tipo: freteTipo,
         condicao_pagamento_nome: condNome,
         vendedor: orc?.vendedor_nome,
         cliente: {
-          razao_social: cliente?.razao_social ?? '',
-          cnpj: cliente?.cnpj ?? '',
           razao_social: cliente?.razao_social || orc?.cliente_nome || 'Cliente',
           cnpj: cliente?.cnpj || '',
           email: cliente?.email,
@@ -496,18 +476,8 @@ export default function OrcamentoDetailPage() {
           cidade: cliente?.cidade,
           estado: cliente?.estado,
         },
-        itens: itens
         itens: freshItens
           .filter(i => i.tipo_papel_id)
-          .map(i => ({
-            tipo_papel_nome: tiposPapel.find(t => t.id === i.tipo_papel_id)?.nome ?? '',
-            largura_mm: i.largura_mm,
-            altura_mm: i.altura_mm,
-            colunas: i.colunas,
-            quantidade: i.quantidades[0] ?? 0,
-            preco_m2: Number(tiposPapel.find(t => t.id === i.tipo_papel_id)?.preco_m2 ?? 0),
-            observacoes: i.observacoes,
-          })),
           .map(i => {
             const faca = facas.find(f => f.id === i.faca_id)
             const papel = tiposPapel.find(t => t.id === i.tipo_papel_id)
@@ -591,19 +561,19 @@ export default function OrcamentoDetailPage() {
         <div className="flex gap-2">
           {!isReadonly && (
             <Button onClick={handleSave} disabled={saving}>
-              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+              {saving ? <Loader2 size={14} className="animate-spin mr-1" /> : <Save size={14} className="mr-1" />}
               Salvar
             </Button>
           )}
           {!isNew && orc?.status === 'aprovado' && (
             <Button variant="outline" onClick={handleConverter} disabled={converting}>
-              {converting ? <Loader2 size={14} className="animate-spin" /> : <FileCheck2 size={14} />}
+              {converting ? <Loader2 size={14} className="animate-spin mr-1" /> : <FileCheck2 size={14} className="mr-1" />}
               Converter em Pedido
             </Button>
           )}
           {!isNew && orc && (
             <Button variant="outline" onClick={handleExportPdf} disabled={exportingPdf}>
-              {exportingPdf ? <Loader2 size={14} className="animate-spin" /> : <FileDown size={14} />}
+              {exportingPdf ? <Loader2 size={14} className="animate-spin mr-1" /> : <FileDown size={14} className="mr-1" />}
               Exportar PDF
             </Button>
           )}
@@ -719,12 +689,6 @@ export default function OrcamentoDetailPage() {
         {/* Right: items */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold">Itens do Orçamento</h3>
-            {!isReadonly && (
-              <Button variant="outline" size="sm" onClick={addItem}>
-                <Plus size={14} /> Adicionar Item
-              </Button>
-            )}
             <div>
               <h3 className="text-sm font-semibold">Itens e Facas do Orçamento</h3>
               <p className="text-xs text-[var(--muted-foreground)]">Adicione diferentes facas e tamanhos no mesmo orçamento.</p>
@@ -746,31 +710,10 @@ export default function OrcamentoDetailPage() {
 
           {itens.length === 0 && (
             <div className="rounded-xl border border-dashed border-[var(--border)] py-12 text-center text-sm text-[var(--muted-foreground)]">
-              Nenhum item. Clique em &quot;Adicionar Item&quot; para começar.
               Nenhum item. Clique em &quot;Adicionar Faca / Item&quot; para começar.
             </div>
           )}
 
-          {itens.map((item, idx) => (
-            <Card key={idx} className="relative">
-              <CardContent className="pt-4 space-y-4">
-                {!isReadonly && (
-                  <button className="absolute top-3 right-3 text-[var(--muted-foreground)] hover:text-[var(--destructive)] transition-colors"
-                    onClick={() => removeItem(idx)}>
-                    <Trash2 size={14} />
-                  </button>
-                )}
-
-                {/* Row 1: Tipo Produto + Faca */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Tipo Produto</Label>
-                    <Select value={item.tipo_produto} onValueChange={(v) => updateItem(idx, { tipo_produto: v })} disabled={isReadonly}>
-                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {TIPOS_PRODUTO.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
           {itens.map((item, idx) => {
             const facaSelecionada = facas.find(f => f.id === item.faca_id)
             return (
@@ -790,19 +733,6 @@ export default function OrcamentoDetailPage() {
                       </span>
                     )}
                   </div>
-
-                  <div className="col-span-2 space-y-1.5">
-                    <Label className="text-xs">Faca *</Label>
-                    <Select value={String(item.faca_id ?? '')} onValueChange={(v) => handleFacaChange(idx, Number(v))} disabled={isReadonly}>
-                      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Selecione faca..." /></SelectTrigger>
-                      <SelectContent>
-                        {getFacasForItem(item).map(f => (
-                          <SelectItem key={f.id} value={String(f.id)}>
-                            {f.nome} ({Number(f.largura_mm)}×{Number(f.altura_mm)}mm, {f.colunas}col)
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
                   <div className="flex items-center gap-1">
                     {!isReadonly && (
                       <>
@@ -817,36 +747,8 @@ export default function OrcamentoDetailPage() {
                       </>
                     )}
                   </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Material *</Label>
-                    <Select value={String(item.tipo_papel_id || '')} onValueChange={(v) => updateItem(idx, { tipo_papel_id: Number(v) })} disabled={isReadonly}>
-                      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Papel..." /></SelectTrigger>
-                      <SelectContent>
-                        {tiposPapel.filter(t => t.ativo).map(t => (
-                          <SelectItem key={t.id} value={String(t.id)}>
-                            {t.nome} ({formatCurrency(Number((t as any).preco_m2_medio ?? t.preco_m2))}/m²)
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
                 </div>
 
-                {/* Row 2: Auto-filled dimensions (readonly) + Cor + Tubete */}
-                <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-[var(--muted-foreground)]">Largura</Label>
-                    <Input type="number" className="h-8 text-xs bg-[var(--muted)]/30" value={item.largura_mm} readOnly />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-[var(--muted-foreground)]">Altura</Label>
-                    <Input type="number" className="h-8 text-xs bg-[var(--muted)]/30" value={item.altura_mm} readOnly />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-[var(--muted-foreground)]">Colunas</Label>
-                    <Input type="number" className="h-8 text-xs bg-[var(--muted)]/30" value={item.colunas} readOnly />
-                  </div>
                 <CardContent className="pt-4 space-y-4">
                   {/* Row 1: Tipo Produto + Faca */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -860,16 +762,6 @@ export default function OrcamentoDetailPage() {
                       </Select>
                     </div>
 
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Cor</Label>
-                    <Select value={item.cor_tipo} onValueChange={(v) => updateItem(idx, { cor_tipo: v as CorTipo, cor_pantone_id: v === 'branca' ? null : item.cor_pantone_id })} disabled={isReadonly}>
-                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="branca">Branca</SelectItem>
-                        <SelectItem value="pantone">Pantone</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
                     <div className="col-span-2 space-y-1.5">
                       <Label className="text-xs font-semibold">Modelo de Faca *</Label>
                       <Select value={String(item.faca_id ?? '')} onValueChange={(v) => handleFacaChange(idx, Number(v))} disabled={isReadonly}>
@@ -884,17 +776,11 @@ export default function OrcamentoDetailPage() {
                       </Select>
                     </div>
 
-                  {item.cor_tipo === 'pantone' ? (
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Cor Pantone</Label>
-                      <Select value={String(item.cor_pantone_id ?? '')} onValueChange={(v) => updateItem(idx, { cor_pantone_id: Number(v) })} disabled={isReadonly}>
-                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Cor..." /></SelectTrigger>
                       <Label className="text-xs font-semibold">Material *</Label>
                       <Select value={String(item.tipo_papel_id || '')} onValueChange={(v) => updateItem(idx, { tipo_papel_id: Number(v) })} disabled={isReadonly}>
                         <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Papel..." /></SelectTrigger>
                         <SelectContent>
-                          {coresPantone.filter(c => c.ativo !== false).map(c => (
-                            <SelectItem key={c.id} value={String(c.id)}>{c.codigo} (+{formatCurrency(Number(c.custo_m2))}/m²)</SelectItem>
                           {tiposPapel.filter(t => t.ativo).map(t => (
                             <SelectItem key={t.id} value={String(t.id)}>
                               {t.nome} ({formatCurrency(Number((t as any).preco_m2_medio ?? t.preco_m2))}/m²)
@@ -903,42 +789,8 @@ export default function OrcamentoDetailPage() {
                         </SelectContent>
                       </Select>
                     </div>
-                  ) : <div />}
-
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Tubete</Label>
-                    <Select value={item.tubete_id ? String(item.tubete_id) : '__none__'} onValueChange={(v) => updateItem(idx, { tubete_id: v === '__none__' ? null : Number(v) })} disabled={isReadonly}>
-                      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Tubete..." /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">Nenhum</SelectItem>
-                        {tubetes.filter(t => t.ativo !== false).map(t => (
-                          <SelectItem key={t.id} value={String(t.id)}>{t.diametro_mm}mm</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
                   </div>
-                </div>
 
-                {/* Row 3: Acabamentos + Qtd por rolo */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Acabamentos</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {acabamentos.filter(a => a.ativo !== false).map(a => {
-                        const checked = item.acabamentos_ids.includes(a.id)
-                        return (
-                          <label key={a.id} className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs cursor-pointer transition-colors ${
-                            checked ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : 'border-[var(--border)] hover:bg-[var(--muted)]/30'
-                          }`}>
-                            <input type="checkbox" className="sr-only" checked={checked} disabled={isReadonly}
-                              onChange={() => {
-                                const ids = checked ? item.acabamentos_ids.filter(id => id !== a.id) : [...item.acabamentos_ids, a.id]
-                                updateItem(idx, { acabamentos_ids: ids })
-                              }} />
-                            {a.nome} ({Number(a.percentual_adicional)}%)
-                          </label>
-                        )
-                      })}
                   {/* Row 2: Auto-filled dimensions (readonly) + Cor + Tubete */}
                   <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
                     <div className="space-y-1.5">
@@ -992,27 +844,7 @@ export default function OrcamentoDetailPage() {
                       </Select>
                     </div>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Qtd por Rolo</Label>
-                    <Input type="number" className="h-8 text-xs" value={item.quantidade_por_rolo}
-                      onChange={(e) => updateItem(idx, { quantidade_por_rolo: Number(e.target.value) })} disabled={isReadonly} />
-                  </div>
-                </div>
 
-                {/* Row 4: Quantidades (multiple) */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs font-semibold">Opções de Quantidade</Label>
-                    <div className="flex gap-2">
-                      {!isReadonly && item.quantidades.length < 5 && (
-                        <Button type="button" variant="outline" size="sm" className="h-6 text-xs" onClick={() => addQuantidade(idx)}>
-                          <Plus size={12} /> Opção
-                        </Button>
-                      )}
-                      <Button type="button" size="sm" className="h-6 text-xs" onClick={() => handleCalcular(idx)} disabled={calculating === idx}>
-                        {calculating === idx ? <Loader2 size={12} className="animate-spin" /> : <Calculator size={12} />}
-                        Calcular
-                      </Button>
                   {/* Row 3: Acabamentos + Qtd por rolo */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
@@ -1041,19 +873,6 @@ export default function OrcamentoDetailPage() {
                         onChange={(e) => updateItem(idx, { quantidade_por_rolo: Number(e.target.value) })} disabled={isReadonly} />
                     </div>
                   </div>
-                  {item.quantidades.map((qty, qIdx) => (
-                    <div key={qIdx} className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <div className="relative flex-1">
-                          <Input type="number" min={1} step="0.001" className="h-8 text-xs pr-10" value={qty / 1000}
-                            onChange={(e) => updateQuantidade(idx, qIdx, Math.round(Number(e.target.value) * 1000))} disabled={isReadonly}
-                            placeholder="Milheiro" />
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--muted-foreground)]">mil</span>
-                        </div>
-                        {item.quantidades.length > 1 && !isReadonly && (
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-[var(--destructive)]"
-                            onClick={() => removeQuantidade(idx, qIdx)}>
-                            <Trash2 size={12} />
 
                   {/* Row 4: Quantidades / Rolos (multiple) */}
                   <div className="space-y-2 pt-2 border-t border-[var(--border)]">
@@ -1073,13 +892,7 @@ export default function OrcamentoDetailPage() {
                           Calcular
                         </Button>
                       </div>
-                      {/* Calc results */}
-                      {item.calcResults[qIdx] && (
-                        <CalcResultRow calc={item.calcResults[qIdx]!} />
-                      )}
                     </div>
-                  ))}
-                </div>
                     {item.quantidades.map((qty, qIdx) => {
                       const qtdPorRolo = item.quantidade_por_rolo > 0 ? item.quantidade_por_rolo : 1000
                       const rolosEstimados = Math.max(1, Math.ceil(qty / qtdPorRolo))
@@ -1114,15 +927,6 @@ export default function OrcamentoDetailPage() {
                     })}
                   </div>
 
-                {/* Observações do item */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Observações do item</Label>
-                  <Input className="h-8 text-xs" value={item.observacoes}
-                    onChange={(e) => updateItem(idx, { observacoes: e.target.value })} disabled={isReadonly} />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
                   {/* Observações do item */}
                   <div className="space-y-1.5">
                     <Label className="text-xs">Observações do item</Label>
@@ -1228,3 +1032,4 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   if (guard) return guard
   return { props: {} }
 }
+
